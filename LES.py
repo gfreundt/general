@@ -1,22 +1,26 @@
-from tqdm import tqdm
+import time
+import copy
+
+# start = time.time()
 
 
 def solve(*equations):
+
+    global answer
+    answer = []
+
     terms = [aggregate_terms(break_terms(i)) for i in equations]
     vars = list(set([k for j in [get_unique_variables(i) for i in terms] for k in j]))
     vars = {i: 0 for i in vars if i != ""}
-    print(vars)
 
-    response = iterate_options(
-        terms, n=30, vars=vars, depth=0, max_depth=len(vars), response=[]
-    )
-    """
+    response = iterate_options(terms, n=30, vars=vars, depth=0, max_depth=len(vars))
+
     if not response:
         response = iterate_options(
-            terms, n=1000, vars=vars, depth=0, max_depth=len(vars), response=[]
+            terms, n=1000, vars=vars, depth=0, max_depth=len(vars)
         )
-    """
-    return terms, response
+
+    return response
 
 
 def break_terms(equation):
@@ -74,23 +78,24 @@ def get_unique_variables(terms):
     return sorted(list(set(d)))
 
 
-def iterate_options(terms, n, vars, depth, max_depth, response):
-
-    # print(f"{vars=}")
+def iterate_options(terms, n, vars, depth, max_depth):
 
     if depth >= max_depth:
-        return response
+        return answer
 
     for next in range(-n, n):
         vars.update({[i for i in vars.keys()][depth]: next})
         if evaluate_for_zero(terms, vars):
-            print("*********", vars)
-            response.append(vars)
+            answer.append(copy.copy(vars))
+            return answer
         else:
-            iterate_options(terms, n, vars, depth + 1, max_depth, response)
+            iterate_options(terms, n, vars, depth + 1, max_depth)
+
+    return answer
 
 
-def evaluate_for_zero(terms, varvals):
+def evaluate_for_zero(terms, vars):
+    varvals = copy.copy(vars)
     varvals.update({"": 1})
     for term in terms:
         evaluation = 0
@@ -101,30 +106,12 @@ def evaluate_for_zero(terms, varvals):
     return True
 
 
-print(solve("2beta+8y=4", "-7beta+4y-9p=14"))  # , {"x": -6.0, "y": 2.0})
+test = ["2alpha+8beta=4", "-alpha+4beta=14"]
+test = ["x=4y", "2x=8y", "x+y=5"]
+test = ["x+y=7z-1", "6x+z=-3y", "4y+10z=-8x"]
+test = ["2x=4"]
 
-"""   
-    @test.it('Long variable names')
-    def b():
-        tester(solve("2alpha+8beta=4", "-alpha+4beta=14"), {'alpha':-6.0, 'beta':2.0})
-        
-        
-    @test.it('Right hand variable')
-    def b():
-        tester(solve("2x=8y", "x+y=5"), {'x':4.0, 'y':1.0})
-        
-        
-    @test.it('Solvable with repeated equations')
-    def b():
-        tester(solve("x=4y", "2x=8y", "x+y=5"), {'x':4.0, 'y':1.0})
-        
-        
-    @test.it('Zero as solution')
-    def b():
-        tester(solve("x+y=7z-1", "6x+z=-3y", "4y+10z=-8x"), {'x':1, 'y':-2, 'z': 0})
 
-a = solve("2x+4y+6z=18", "3y+3z=6", "x+2y=z-3")
+print(solve("2alpha+8beta=4", "-alpha+4beta=14"))
 
-for i in a:
-    print(i)
-"""
+# print(f"Time: {time.time()-start:.4f}")
