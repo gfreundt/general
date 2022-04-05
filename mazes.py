@@ -4,7 +4,7 @@ import os
 import time
 import sys
 
-sys.setrecursionlimit = 10000000
+sys.setrecursionlimit = 10 ** 8
 
 
 def print_maze(maze):
@@ -24,7 +24,7 @@ def print_maze(maze):
         print("".join(line))
 
 
-def creator(height, width, saturation):
+def creator(height, width, saturation, save=False):
     array = [[1] * width]
     for _ in range(height - 2):
         line = [1]
@@ -37,12 +37,9 @@ def creator(height, width, saturation):
 
     array[0][1] = 2
     array[height - 1][width - 2] = 3
-
-    print_maze(array)
-
-    with open("maze.csv", "w", newline="", encoding="utf-8") as outfile:
-        csv.writer(outfile).writerows(array)
-
+    if save:
+        with open("maze.csv", "w", newline="", encoding="utf-8") as outfile:
+            csv.writer(outfile).writerows(array)
     return array
 
 
@@ -54,27 +51,28 @@ def get_possible_destinations(maze, pos, been_there):
         pixel = maze[coords[0]][coords[1]]
         if pixel == 0 and pixel not in been_there:
             moves.append(coords)
-        if pixel == 3:
-            print("Success!")
-            print(time.time() - start)
-            print_maze(maze)
-            exit()
+        elif pixel == 3:
+            return -1
     return moves
 
 
-def solve_maze(maze, pos, path, been_there):
-
-    if maze[pos[0]][pos[1]] == 3:
-        print("Solved!")
-        exit()
-    # print_maze(maze)
-    # print(time.time())
-    # time.sleep(0.01)
+def solve_maze(maze, pos, path, been_there, solved):
+    if maze[pos[0]][pos[1]] == 3 or solved:
+        return True
     destinations = get_possible_destinations(maze, pos, been_there)
+    if destinations == -1:
+        return True
     for dest in destinations:
         path.append(dest)
         maze[dest[0]][dest[1]] = "."
-        solve_maze(maze, pos=dest, path=path, been_there=been_there)
+        solved = solve_maze(
+            maze, pos=dest, path=path, been_there=been_there, solved=solved
+        )
+        if solved:
+            return True
+        else:
+            maze[dest[0]][dest[1]] = " "
+    return False
 
 
 def load_maze(filename="maze.csv"):
@@ -82,10 +80,10 @@ def load_maze(filename="maze.csv"):
         return [[int(i) for i in j] for j in csv.reader(file)]
 
 
-maze = load_maze("maze1.csv")
-print_maze(maze)
-maze = creator(50, 60, 30)
-
-start = time.time()
-solve_maze(maze, pos=(0, 1), path=[], been_there=[])
-print("NO PATH")
+if __name__ == "__main__":
+    # maze = load_maze("maze3.csv")
+    maze = creator(100, 100, 30)
+    start = time.time()
+    solved = solve_maze(maze, pos=(0, 1), path=[], been_there=[], solved=False)
+    print_maze(maze)
+    print(f"Can be solved: {solved} in {time.time()-start:.3f}")
