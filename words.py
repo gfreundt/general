@@ -1,14 +1,13 @@
 import pyautogui
 import time
+import platform
 from copy import deepcopy as copy
 from PIL import Image
 
 import easyocr
-import pytesseract
+import pytesseract as pyt
 
-import itertools
-
-pytesseract.pytesseract.tesseract_cmd = r"C:\pythonCode\Tesseract-OCR\tesseract.exe"
+from itertools import permutations
 
 
 class Info:
@@ -38,6 +37,7 @@ class Info:
         ]
         self.dial_center = (centers[2][0], (centers[0][1] + centers[1][1]) // 2)
         self.slide_time = 0.2
+        self.drive = "D:" if platform.node() == "power" else "C:"
 
 
 def extract_letters():
@@ -70,8 +70,18 @@ def extract_letters():
             "combo.jpg", paragraph=False, decoder="beamsearch"
         )[0][1]
     )
-    result2 = post_processing(pytesseract.image_to_string(Image.open("combo.jpg")))
-    return result1 if len(result1) == 6 else result2 if len(result2) == 6 else None
+    result2 = post_processing(pyt.image_to_string(Image.open("combo.jpg")))
+    result = result1 if len(result1) == 6 else result2 if len(result2) == 6 else None
+    return list(result.lower()) if result else None
+
+
+def get_valid_words(letters):
+    words = []
+    for length in range(3, 7):
+        words += ["".join(i) for i in permutations(letters, length) if len(i) > 2]
+    with open("english50k.txt", mode="r") as file:
+        all_words = [i.strip() for i in file.readlines()]
+    return sorted(set([i for i in words if i in all_words]), key=lambda i: len(i))
 
 
 def go_thru_letters(word):
@@ -84,7 +94,7 @@ def go_thru_letters(word):
                 coords.append(c["centers"])
                 temp_letters.pop(k)
                 break
-    # click thru sequence of letter coordinates
+    # click thru sequence of letter coordinates on app
     pyautogui.moveTo(coords[0][0], coords[0][1], app.slide_time)
     pyautogui.mouseDown(button="left")
     for c in coords[1:]:
@@ -93,45 +103,31 @@ def go_thru_letters(word):
     pyautogui.moveTo(app.dial_center[0], app.dial_center[1], app.slide_time)
 
 
-"""
-1. Open App
-2. Navigate to Game
-3. Cut and identify letters
-4. Create list of words
-5. Click and drag each word, check for puzzle complete
-6. Click for next puzzle
-"""
-
 # 0. Init
 app = Info()
+pyt.pytesseract.tesseract_cmd = rf"{app.drive}\pythonCode\Tesseract-OCR\tesseract.exe"
 
 # 1. Open App
 print("Starting in 5 seconds...")
-# time.sleep(7)
+time.sleep(5)
 
 # 2. Navigate to Game
 # print("Navigate to Game")
 # time.sleep(5)
 
 # 3. Cut and identify letters, store them in dictionary with coordinates
-# letters = [i.lower() for i in extract_letters()]
-letters = [i.lower() for i in "estuta"]
+letters = extract_letters()
+# letters = list("estuta")
 for i, j in zip(app.letters, letters):
     i.update({"alpha": j})
 
 
 # 4. Create list of words
-words = []
-for length in range(3, 7):
-    words += ["".join(i) for i in itertools.permutations(letters, length) if len(i) > 2]
-with open("english50k.txt", mode="r") as file:
-    all_words = [i.strip() for i in file.readlines()]
-possible_words = set([i for i in words if i in all_words])
+valid_words = get_valid_words(letters)
 
-print(sorted(possible_words, key=lambda i: len(i)))
 
 # 5. Click and drag each word, check for puzzle complete
-for word in possible_words:
+for word in valid_words:
     print(word)
     go_thru_letters(word)
     time.sleep(1)
