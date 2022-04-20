@@ -13,7 +13,7 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\pythonCode\Tesseract-OCR\tesseract.
 
 class Info:
     def __init__(self) -> None:
-        self.centers = [
+        centers = [
             (1215, 1124),
             (1215, 1303),
             (1365, 1384),
@@ -26,15 +26,18 @@ class Info:
         self.letters = [
             {
                 "alpha": " ",
-                "coords": (
+                "centers": i,
+                "edges": (
                     i[0] - self.cut_size[0] // 2,
                     i[1] - self.cut_size[1] // 2,
                     i[0] + self.cut_size[0] // 2,
                     i[1] + self.cut_size[1] // 2,
                 ),
             }
-            for i in self.centers
+            for i in centers
         ]
+        self.dial_center = (centers[2][0], (centers[0][1] + centers[1][1]) // 2)
+        self.slide_time = 0.2
 
 
 def extract_letters():
@@ -52,12 +55,12 @@ def extract_letters():
 
     # create blank image
     newImage = Image.new(
-        "RGB", (len(app.centers) * app.cut_size[0], app.cut_size[1]), (50, 50, 50)
+        "RGB", (len(app.letters) * app.cut_size[0], app.cut_size[1]), (50, 50, 50)
     )
 
     # crop individual letters and paste to blank image (only 6 for now)
     for k, letter in enumerate(app.letters):
-        croppedImage = img.crop((letter["coords"]))
+        croppedImage = img.crop((letter["edges"]))
         newImage.paste(croppedImage, (k * app.cut_size[0], 0))
     newImage.save(f"combo.jpg")
 
@@ -72,23 +75,22 @@ def extract_letters():
 
 
 def go_thru_letters(word):
+    # get coordinates for sequence of letters
     temp_letters = copy(app.letters)
-    print(f"{temp_letters=}")
     coords = []
     for letter in word:
-        for k, c in temp_letters:
-            print(f"{c=}")
+        for k, c in enumerate(temp_letters):
             if letter == c["alpha"]:
-                coords.append(c["coords"])
+                coords.append(c["centers"])
                 temp_letters.pop(k)
-    print(coords)
-    return
-
-    pyautogui.moveTo(app.centers[0][0], app.centers[0][1], 3)
+                break
+    # click thru sequence of letter coordinates
+    pyautogui.moveTo(coords[0][0], coords[0][1], app.slide_time)
     pyautogui.mouseDown(button="left")
-    for c in range(1, len(app.centers)):
-        pyautogui.moveTo(app.centers[c][0], app.centers[c][1], 1)
+    for c in coords[1:]:
+        pyautogui.moveTo(c[0], c[1], app.slide_time)
     pyautogui.mouseUp(button="left")
+    pyautogui.moveTo(app.dial_center[0], app.dial_center[1], app.slide_time)
 
 
 """
@@ -130,4 +132,6 @@ print(sorted(possible_words, key=lambda i: len(i)))
 
 # 5. Click and drag each word, check for puzzle complete
 for word in possible_words:
+    print(word)
     go_thru_letters(word)
+    time.sleep(1)
