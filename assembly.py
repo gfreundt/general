@@ -61,6 +61,7 @@ def assembler_interpreter(program):
     program = [clean(line) for line in program.split("\n") if len(line) > 0]
     labels = get_labels(program)
     pos = 0
+    return_pos = []
     output = ""
     result = {" ": ""}
 
@@ -94,10 +95,11 @@ def assembler_interpreter(program):
         elif cmd == "cmp":
             pos = compare(pos + 1, arg1, arg2)
         elif cmd == "call":
-            return_pos = int(pos)
+            return_pos.append(int(pos))
             pos = labels[arg1]
         elif cmd == "ret":
-            pos = int(return_pos)
+            pos = int(return_pos[-1])
+            return_pos = return_pos[:-1]
         elif cmd == "msg":
             output = deconstruct_message(arg1)
         elif cmd == "end":
