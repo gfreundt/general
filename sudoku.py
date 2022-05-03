@@ -1,3 +1,11 @@
+import copy
+
+
+class Var:
+    def __init__(self) -> None:
+        self.results = []
+
+
 def printg(grid):
     for i in grid:
         print(i)
@@ -23,11 +31,7 @@ def valid(grid):
 def solver():
 
     if len([i for line in grid for i in line if i == 0]) < 1:
-        print("************")
-        printg(grid)
-        grid_solved = grid[:]
-    # printg(grid)
-    # _ = input()
+        v.results.append(copy.deepcopy(grid))
 
     for x in range(9):
         for y in range(9):
@@ -38,9 +42,7 @@ def solver():
                         solver()
                     else:
                         grid[y][x] = 0
-                # print(grid)
                 return
-    grid_solved = grid[:]
 
 
 grid_solved = []
@@ -56,8 +58,8 @@ grid = [
     [0, 0, 0, 4, 1, 9, 0, 0, 5],
     [0, 0, 0, 0, 8, 0, 0, 7, 9],
 ]
-
-"""grid = [
+"""
+grid = [
     [9, 1, 3, 6, 5, 0, 4, 2, 7],
     [2, 5, 4, 9, 1, 7, 6, 0, 3],
     [6, 8, 7, 4, 0, 2, 9, 1, 5],
@@ -68,7 +70,6 @@ grid = [
     [7, 2, 6, 0, 0, 1, 3, 0, 9],
     [0, 0, 5, 2, 0, 0, 8, 7, 1],
 ]
-"""
 
 grid = [
     [0, 1, 3, 6, 5, 0, 0, 2, 7],
@@ -81,6 +82,10 @@ grid = [
     [7, 2, 0, 0, 0, 1, 3, 0, 9],
     [0, 0, 0, 2, 0, 0, 8, 7, 1],
 ]
+"""
 
+
+v = Var()
 solver()
-print(grid_solved)
+for i in v.results:
+    printg(i)

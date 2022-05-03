@@ -1,5 +1,4 @@
 import time
-import copy
 
 # start = time.time()
 
@@ -13,7 +12,7 @@ def solve(*equations):
     vars = list(set([k for j in [get_unique_variables(i) for i in terms] for k in j]))
     vars = {i: 0 for i in vars if i != ""}
 
-    response = iterate_options(terms, n=30, vars=vars, depth=0, max_depth=len(vars))
+    response = iterate_options(terms, n=150, vars=vars, depth=0, max_depth=len(vars))
 
     if not response:
         response = iterate_options(
@@ -86,7 +85,7 @@ def iterate_options(terms, n, vars, depth, max_depth):
     for next in range(-n, n):
         vars.update({[i for i in vars.keys()][depth]: next})
         if evaluate_for_zero(terms, vars):
-            answer.append(copy.copy(vars))
+            answer.append(vars.copy())
             return answer
         else:
             iterate_options(terms, n, vars, depth + 1, max_depth)
@@ -95,7 +94,7 @@ def iterate_options(terms, n, vars, depth, max_depth):
 
 
 def evaluate_for_zero(terms, vars):
-    varvals = copy.copy(vars)
+    varvals = vars.copy()
     varvals.update({"": 1})
     for term in terms:
         evaluation = 0
@@ -111,7 +110,7 @@ test = ["x=4y", "2x=8y", "x+y=5"]
 test = ["x+y=7z-1", "6x+z=-3y", "4y+10z=-8x"]
 test = ["2x=4"]
 
-
-print(solve("2alpha+8beta=4", "-alpha+4beta=14"))
+print(solve("x+2y=1", "2x=2-4y"))
+# print(solve("2alpha+8beta=4", "-alpha+4beta=14"))
 
 # print(f"Time: {time.time()-start:.4f}")
