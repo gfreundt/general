@@ -1,4 +1,4 @@
-from mazes import creator
+from mazes import creator, print_maze
 import os, time
 import pygame
 
@@ -25,11 +25,11 @@ def draw_maze(maze):
     pygame.draw.line(screen, WHITE, BOT_RIGHT, BOT_LEFT)
     pygame.draw.line(screen, WHITE, BOT_LEFT, TOP_LEFT)
 
-    for r, row in enumerate(maze[:-1]):
+    """
+    for r, row in enumerate(maze[1:-1]):
+        for c, cell in enumerate(row[1:-1]):
 
-        for c, cell in enumerate(row[:-1]):
-
-            if maze[r][c + 1] == 1:
+            if maze[r + 1][c] == 1:
                 pygame.draw.line(
                     screen,
                     WHITE,
@@ -37,19 +37,33 @@ def draw_maze(maze):
                     (r * scale + xmargin, (c + 1) * scale + ymargin),
                 )
 
-            if maze[r + 1][c] == 1:
+            if maze[r][c + 1] == 1:
                 pygame.draw.line(
                     screen,
                     WHITE,
                     (r * scale + xmargin, c * scale + ymargin),
                     ((r + 1) * scale + xmargin, c * scale + ymargin),
                 )
+    """
 
-    pygame.display.update()
+    for row in range(len(maze)):
+        for col in range(len(maze[0])):
+            print(row, col)
+            if maze[row][col] == 1:
+                x0 = xmargin + col * scale
+                x1 = xmargin + (col + 1) * scale
+                y0 = ymargin + row * scale
+                y1 = ymargin + (row + 1) * scale
+                print(x0, y0, x1, y1)
+                time.sleep(1)
+                pygame.draw.rect(screen, WHITE, pygame.Rect(x0, y0, x1, y1))
+
+                pygame.display.update()
+    print("Donde")
 
 
 # Game Variables
-SQUARE_SIZE = 50
+SQUARE_SIZE = 20
 SCREEN_SIZE = (SQUARE_SIZE * 30, SQUARE_SIZE * 30)
 SCREEN_CAPTION = "Mazing"
 WHITE = (255, 255, 255)
@@ -62,6 +76,6 @@ pygame.display.set_caption(SCREEN_CAPTION)
 # pygame.display.set_icon(pygame.image.load(game.SCREEN_ICON))
 
 
-maze = creator(10, 20, 50)
+maze = creator(10, 10, 35)
+print_maze(maze)
 draw_maze(maze)
-time.sleep(100)
