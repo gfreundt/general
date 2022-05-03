@@ -1,41 +1,26 @@
-def look_and_say(data="1", maxlen=5):
-    r = []
-    for _ in range(maxlen):
-        data = interpreter(data)
-        r.append(data)
-    return r
+from math import factorial
 
 
-def interpreter(data):
-    r = ""
-    multip = 1
-    pos = 0
-    while True:
-        if pos == len(data) - 1:
-            r += str(multip) + data[pos]
-            break
-        elif data[pos] == data[pos + 1]:
-            multip += 1
-            pos += 1
-        else:
-            r += str(multip) + data[pos]
-            pos += 1
-            multip = 1
-    return r
+def dec_2_fact_string(nb):
+    r, leading = [], True
+    for digits in range(36, -1, -1):
+        c = nb // factorial(digits)
+        if c >= 1:
+            r.append(c)
+            nb -= c * factorial(digits)
+            leading = False
+        elif not leading:
+            r.append(c)
+    return "".join([str(i) if i < 10 else chr(i + 55) for i in r])
 
 
-a = look_and_say()
+def fact_string_2_dec(string):
+    string = [int(i) if i.isdigit() else ord(i) - 55 for i in string]
+    return sum(
+        [factorial(len(string) - k) * int(i) for k, i in enumerate(string, start=1)]
+    )
 
-print(a)
 
+print(fact_string_2_dec("34145010"))
 
-"""     1
-         11
-         21
-        1211
-       111221
-       312211
-      13112221
-     1113213211
-     
-"""
+print(dec_2_fact_string(18247))

@@ -1,39 +1,64 @@
-import itertools
-from math import factorial, ceil
+from math import factorial
+import itertools as itt
 
 
 def score(word):
     def inorder(word):
         return sorted([i for i in word])
 
-    dup = 1
+    offset = 0
+    dup = 4
     word = word.upper()
     score = 0
     for k, letter in enumerate(word):
-        n = inorder(word[k:]).index(letter) * ceil(
-            factorial(len(word) - k - 1) / factorial(dup)
-        )
-        score += n
-    #        print(
-    #            f"{inorder(word[k:]).index(letter)=} {factorial(len(word) - k - 1)=} {letter=}  {k=}  {n=}  {score=}"
-    #        )
-
+        if word.count(letter) > 1:
+            offset += 1
+        else:
+            offset = 0
+        score += (
+            inorder(word[k:]).index(letter)
+            * factorial(len(word) - k - 1)
+            // factorial(dup)
+        ) + offset
     return score + 1
 
 
-# print(score("orange"))
-# print(score("aegnor"))
+def rank(letter, word, k):
+    return sorted(word[k:]).index(letter)
+    return sorted(set(word[k:])).index(letter)
 
 
-testing = "agxzh"
-# print(score(testing))
-# quit()
+def combos_left(word, k):
+    f = len(set(word[k + 1 :]))
+    f = len(word[k + 1 :])
+    print(f"{word[k+1:]=}  {k=}  {f=}  ")
+    return factorial(f)
 
-test = sorted(set(["".join(j) for j in itertools.permutations([i for i in testing])]))
-test2 = sorted(["".join(j) for j in itertools.permutations([i for i in testing])])
 
 # test = ["ghxaza", "ghxzaa", "ghzaax", "ghzaxa"]
 
 
-for k, t in enumerate(test, start=1):
-    print(k, t, score(t), score(t) == k)
+def scoring(word):
+
+    count = 0
+    while len(word) > 1:
+        first = word[0]
+        uniques = set(word)
+        possibilities = factorial(len(word))
+        for letter in uniques:
+            possibilities /= factorial(word.count(letter))
+        for letter in uniques:
+            if letter < first:
+                count += possibilities / len(word) * word.count(letter)
+        word = word[1:]
+    return int(count + 1)
+
+
+def brute(word):
+    all = sorted(list(set(["".join(i) for i in itt.permutations(word)])))
+    unique = len(list(set(word)))
+    rep = len(word) - unique
+    return all, all.index(word) + 1, unique, rep
+
+
+print(scoring("BOOKKEEPER"))

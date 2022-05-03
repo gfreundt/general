@@ -14,14 +14,14 @@ class Info:
     def __init__(self) -> None:
         centers = [
             (1215, 1124),
-            (1215, 1303),
-            (1365, 1384),
-            (1522, 1303),
+            (1215, 1301),
+            (1365, 1388),
+            (1522, 1301),
             (1522, 1124),
-            (1365, 1034),
+            (1365, 1036),
         ]
         # self.centers = [(853, 688), (853, 811), (960, 877), (1066, 811), (1066, 688), (960, 626)]
-        self.cut_size = (70, 70)
+        self.cut_size = (80, 80)
         self.letters = [
             {
                 "alpha": " ",
@@ -36,7 +36,7 @@ class Info:
             for i in centers
         ]
         self.dial_center = (centers[2][0], (centers[0][1] + centers[1][1]) // 2)
-        self.slide_time = 0.2
+        self.slide_time = 0.4
         self.drive = "D:" if platform.node() == "power" else "C:"
 
 
@@ -71,8 +71,13 @@ def extract_letters():
         )[0][1]
     )
     result2 = post_processing(pyt.image_to_string(Image.open("combo.jpg")))
+    print(result1, result2)
     result = result1 if len(result1) == 6 else result2 if len(result2) == 6 else None
     return list(result.lower()) if result else None
+
+    """
+    gft-966@wordvision.iam.gserviceaccount.com
+    """
 
 
 def get_valid_words(letters):
@@ -104,30 +109,46 @@ def go_thru_letters(word):
 
 
 # 0. Init
-app = Info()
-pyt.pytesseract.tesseract_cmd = rf"{app.drive}\pythonCode\Tesseract-OCR\tesseract.exe"
-
-# 1. Open App
+drive = "D:" if platform.node() == "power" else "C:"
+pyt.pytesseract.tesseract_cmd = rf"{drive}\pythonCode\Tesseract-OCR\tesseract.exe"
 print("Starting in 5 seconds...")
 time.sleep(5)
 
-# 2. Navigate to Game
-# print("Navigate to Game")
-# time.sleep(5)
+# 1. Open App and Navigate to Game
 
-# 3. Cut and identify letters, store them in dictionary with coordinates
-letters = extract_letters()
-# letters = list("estuta")
-for i, j in zip(app.letters, letters):
-    i.update({"alpha": j})
+while True:
+    app = Info()
 
+    # 2. Clear bonus words
+    pyautogui.click(x=1110, y=245, clicks=1, button="left")  # click on bonus icon
+    time.sleep(2)
+    pyautogui.click(x=1380, y=1370, clicks=1, button="left")  # click "claim"
+    time.sleep(2)
+    pyautogui.click(x=1380, y=1490, clicks=1, button="left")  # click "back to puzzle"
 
-# 4. Create list of words
-valid_words = get_valid_words(letters)
+    # 3. Cut and identify letters, store them in dictionary with coordinates
+    letters, k = None, 0
+    while not letters:
+        letters = extract_letters()
+        if not letters:
+            pyautogui.click(x=1010, y=245, clicks=1, button="left")
+            k += 1
+            if k > 2:
+                print("stopped!")
+                quit()
 
+    for i, j in zip(app.letters, letters):
+        i.update({"alpha": j})
 
-# 5. Click and drag each word, check for puzzle complete
-for word in valid_words:
-    print(word)
-    go_thru_letters(word)
+    # 4. Create list of words
+    valid_words = get_valid_words(letters)
+
+    # 5. Click and drag each word, click "NEXT"
+    for word in valid_words:
+        print(word)
+        go_thru_letters(word)
+    time.sleep(12)  # wait for animation and "next" to appear
+    pyautogui.click(x=1380, y=1370, clicks=1, button="left")
     time.sleep(1)
+    pyautogui.moveTo(1000, 1000, 0.2)  # move cursor out of the way for next screenshot
+    time.sleep(5)  # wait for puzzle to load
