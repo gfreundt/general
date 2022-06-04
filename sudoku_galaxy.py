@@ -58,7 +58,7 @@ class Info:
             for i in range(3)
             for j in range(3)
         ]
-
+        self.pixel_guide = {(56, 38): 1, (66, 52):2, (61, 16):3, (53, 58):4, (14, 52):5, (31, 17):6, (24, 15):7, (61, 54):8 , (70, 27):9}
         self.drive = "D:" if platform.node() == "power" else "C:"
 
 
