@@ -1,16 +1,10 @@
 import pyautogui
 import time
 import platform
-from copy import deepcopy as copy
-from PIL import Image, ImageGrab
+from PIL import ImageGrab
 import numpy as np
 from tqdm import tqdm
-
 import easyocr
-import pytesseract as pyt
-
-from itertools import permutations
-
 from sudoku import Sudoku
 
 
@@ -81,7 +75,18 @@ def extract_letters():
     # take screenshot
     img = ImageGrab.grab()
     result = []
-    # OCR one by one
+    # inspect one by one and find if unique pixel is off
+    for digit in tqdm(app.grid_digit_cutouts):
+        cutout = np.asarray(img.crop(digit))
+        for options in app.pixel_guide:
+            if cutout[options[0]][options[1]][0] < 200:
+                result.append(app.pixel_guide[options])        
+                # break
+    print(result, len(result))
+    return [[i for i in result[j * 9 : (j + 1) * 9]] for j in range(9)]
+
+
+
     for digit in tqdm(app.grid_digit_cutouts):
         cutout = np.asarray(img.crop(digit))
         if is_blank(cutout):
@@ -213,7 +218,6 @@ def test():
 
 
 # 0. Init
-# drive = "D:" if platform.node() == "power" else "C:"
 print("Starting in 5 seconds...")
 time.sleep(5)
 
@@ -221,18 +225,6 @@ time.sleep(5)
 
 while True:
     app = Info()
-
-    original_puzzle = [
-        [0, 0, 7, 0, 4, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 8, 0, 0, 6],
-        [0, 4, 1, 0, 0, 0, 9, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 7, 0],
-        [0, 0, 0, 0, 0, 6, 0, 0, 0],
-        [0, 0, 8, 7, 0, 0, 2, 0, 0],
-        [3, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 1, 2, 0, 0, 0, 0],
-        [8, 6, 0, 0, 7, 0, 0, 0, 5],
-    ]
     original_puzzle = extract_letters()
     print(original_puzzle)
     solved_puzzle = Sudoku(3, 3, board=original_puzzle).solve().board
@@ -240,36 +232,4 @@ while True:
     insert_missing_digits(solved_puzzle, original_puzzle)
     quit()
 
-    # 2. Clear bonus words
-    pyautogui.click(x=1110, y=245, clicks=1, button="left")  # click on bonus icon
-    time.sleep(2)
-    pyautogui.click(x=1380, y=1370, clicks=1, button="left")  # click "claim"
-    time.sleep(2)
-    pyautogui.click(x=1380, y=1490, clicks=1, button="left")  # click "back to puzzle"
-
-    # 3. Cut and identify letters, store them in dictionary with coordinates
-    letters, k = None, 0
-    while not letters:
-        letters = extract_letters()
-        if not letters:
-            pyautogui.click(x=1010, y=245, clicks=1, button="left")
-            k += 1
-            if k > 2:
-                print("stopped!")
-                quit()
-
-    for i, j in zip(app.letters, letters):
-        i.update({"alpha": j})
-
-    # 4. Create list of words
-    valid_words = get_valid_words(letters)
-
-    # 5. Click and drag each word, click "NEXT"
-    for word in valid_words:
-        print(word)
-        go_thru_letters(word)
-    time.sleep(12)  # wait for animation and "next" to appear
-    pyautogui.click(x=1380, y=1370, clicks=1, button="left")
-    time.sleep(1)
-    pyautogui.moveTo(1000, 1000, 0.2)  # move cursor out of the way for next screenshot
-    time.sleep(5)  # wait for puzzle to load
+    
