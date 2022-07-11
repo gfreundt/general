@@ -15,7 +15,6 @@ def validate_battlefield(field):
 
     # TEST 3A: Count ship size > 1 and amount (horizontally and vertically)
     fieldFlipped = [[i[k] for i in field] for k in range(10)]
-    print(fieldFlipped)
     navy = []
     for direction in (field, fieldFlipped):
         found, size = False, 0
@@ -58,6 +57,19 @@ battleField = [
     [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
     [1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+]
+
+battleField = [
+    [1, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 0],
+    [1, 1, 0, 0, 1, 1, 1, 0, 1, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+    [0, 0, 0, 0, 1, 1, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 ]
 
 print(validate_battlefield(battleField))
