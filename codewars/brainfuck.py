@@ -6,7 +6,7 @@ def brain_luck(code, program_input):
         if c == "[":
             t += 1
             pars[t].append(n)
-            # k = t
+            k = t
 
         elif c == "]":
             pars[k].append(n)
