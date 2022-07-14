@@ -1,0 +1,6 @@
+def rotate_like_a_vortex(matrix):
+    nrings = len(matrix[0]) / 2
+
+
+matrix = [[5, 3, 6, 1], [5, 8, 7, 4], [1, 2, 4, 3], [3, 1, 2, 2]]
+print(rotate_like_a_vortex(matrix))
