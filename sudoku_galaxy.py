@@ -52,7 +52,17 @@ class Info:
             for i in range(3)
             for j in range(3)
         ]
-        self.pixel_guide = {(56, 38): 1, (66, 52):2, (61, 16):3, (53, 58):4, (14, 52):5, (31, 17):6, (24, 15):7, (61, 54):8 , (70, 27):9}
+        self.pixel_guide = {
+            (56, 38): 1,
+            (66, 52): 2,
+            (61, 16): 3,
+            (53, 58): 4,
+            (14, 52): 5,
+            (31, 17): 6,
+            (24, 15): 7,
+            (61, 54): 8,
+            (70, 27): 9,
+        }
         self.drive = "D:" if platform.node() == "power" else "C:"
 
 
@@ -78,17 +88,6 @@ def extract_letters():
     # inspect one by one and find if unique pixel is off
     for digit in tqdm(app.grid_digit_cutouts):
         cutout = np.asarray(img.crop(digit))
-        for options in app.pixel_guide:
-            if cutout[options[0]][options[1]][0] < 200:
-                result.append(app.pixel_guide[options])        
-                # break
-    print(result, len(result))
-    return [[i for i in result[j * 9 : (j + 1) * 9]] for j in range(9)]
-
-
-
-    for digit in tqdm(app.grid_digit_cutouts):
-        cutout = np.asarray(img.crop(digit))
         if is_blank(cutout):
             ocr_digit = 0
         else:
@@ -100,7 +99,11 @@ def extract_letters():
                     text_threshold=0.4,
                 )
             )
-        result.append(ocr_digit)
+        if ocr_digit in (1, 7):
+            ocr_digit = 7 if cutout[16][19][0] < 200 else 1
+
+        result.append(ocr_digit if ocr_digit else 0)
+        print(ocr_digit)
     return [[i for i in result[j * 9 : (j + 1) * 9]] for j in range(9)]
 
 
@@ -231,5 +234,3 @@ while True:
     print(solved_puzzle)
     insert_missing_digits(solved_puzzle, original_puzzle)
     quit()
-
-    
