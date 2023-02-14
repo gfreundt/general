@@ -14,28 +14,73 @@ class Environment:
     BLACK = (0, 0, 0)
     RED = (255, 0, 0)
     BG = (25, 72, 80)
-    FONT = pygame.font.Font("roboto.ttf", 12)
+    FONT14 = pygame.font.Font("roboto.ttf", 14)
+    FONT12 = pygame.font.Font("roboto.ttf", 12)
     SCALE = 3
 
     def __init__(self, *args) -> None:
         # pygame init
-        self.FRAME = 1000
+        self.FRAME = (
+            min(pygame.display.Info().current_h, pygame.display.Info().current_w) // 1.1
+        )
+        # self.FRAME = 800
         self.displaySurface = pygame.display.set_mode((self.FRAME, self.FRAME))
         pygame.display.set_caption("ATC Simulator")
         self.FramePerSec = pygame.time.Clock()
-        # load all types of planes and airspace information
+        # load moving plane information
+        self.allMovingSprites = pygame.sprite.Group()
         with open("atc-airplanes.json", mode="r") as json_file:
             self.airplaneInfo = json.loads(json_file.read())
+        self.activeAirplanes = []
+        # load fixed airspace information
+        self.allFixedSprites = pygame.sprite.Group()
         with open("atc-airspace.json", mode="r") as json_file:
             self.airspaceInfo = json.loads(json_file.read())
-        # init collections of airplanes and entities
-        self.activeAirplanes = []
-        self.allFixedSprites = pygame.sprite.Group()
-        self.allMovingSprites = pygame.sprite.Group()
-        # create airspace entities
-        TRIANGLE = pygame.Surface((8, 8))
+        self.load_airspace()
+
+    def load_airspace(self):
+
+        # create VOR entities
+        TRIANGLE = pygame.Surface((10, 10))
         TRIANGLE.fill(self.BG)
-        pygame.draw.polygon(TRIANGLE, self.RED, ((4, 0), (0, 8), (8, 8)))
+        pygame.draw.polygon(TRIANGLE, self.WHITE, ((5, 0), (0, 9), (9, 9)), True)
+        CIRCLES = pygame.Surface((10, 10))
+        CIRCLES.fill(self.BG)
+        pygame.draw.circle(CIRCLES, self.WHITE, (5, 5), 5, True)
+        pygame.draw.circle(CIRCLES, self.WHITE, (5, 5), 3, True)
+        symbols = {"TRIANGLE": TRIANGLE, "CIRCLES": CIRCLES}
+
+        # create bckground surface
+        self.bgSurface = pygame.Surface((self.FRAME, self.FRAME))
+        self.bgSurface.fill(self.BG)
+        # add VOR entities to background surface
+        for vor in self.airspaceInfo["VOR"]:
+            self.bgSurface.blit(source=symbols[vor["symbol"]], dest=(vor["xy"]))
+            self.bgSurface.blit(
+                source=self.FONT14.render(
+                    vor["name"],
+                    True,
+                    self.WHITE,
+                    self.BG,
+                ),
+                dest=(vor["xy"][0] - 10, vor["xy"][1] + 15),
+            )
+        # add Runway entities to background surface
+        for runway in self.airspaceInfo["runways"]:
+            pygame.draw.line(
+                self.bgSurface,
+                self.WHITE,
+                runway["from"]["xy"],
+                runway["to"]["xy"],
+                width=5,
+            )
+            for d in ("from", "to"):
+                self.bgSurface.blit(
+                    source=self.FONT14.render(
+                        runway[d]["tag"], True, self.WHITE, self.BG
+                    ),
+                    dest=runway[d]["xy"],
+                )
 
     def load_new_plane(self, selected, fixedInfo, inbound):
         callSign = "AA" + str(
@@ -144,7 +189,7 @@ class Airplane(pygame.sprite.Sprite):
         self.tailPosition0 = (self.x + 3, self.y + 3)
         self.tailPosition1 = (self.x, self.y)
         # create pygame entity - airplane tag
-        self.tagText0 = self.tagText1 = ATC.FONT.render(
+        self.tagText0 = self.tagText1 = ATC.FONT12.render(
             " ",
             True,
             ATC.WHITE,
@@ -166,9 +211,9 @@ class Airplane(pygame.sprite.Sprite):
             self.x + self.tailLength * math.sin(math.radians(self.heading + 180)),
             self.y - self.tailLength * math.cos(math.radians(self.heading + 180)),
         )
-        self.tagText0 = ATC.FONT.render(self.callSign, True, ATC.WHITE, ATC.BG)
+        self.tagText0 = ATC.FONT12.render(self.callSign, True, ATC.WHITE, ATC.BG)
         text1 = f"{(self.altitude // 1000):03}={self.speed}"
-        self.tagText1 = ATC.FONT.render(text1, True, ATC.WHITE, ATC.BG)
+        self.tagText1 = ATC.FONT12.render(text1, True, ATC.WHITE, ATC.BG)
         self.tagPosition0 = (self.x + 20, self.y + 20)
         self.tagPosition1 = (self.x + 20, self.y + 33)
 
@@ -178,9 +223,6 @@ ATC = Environment()
 
 for _ in range(6):
     ATC.load_new_plane("A320", ATC.airplaneInfo["A320"], inbound=True)
-
-for vor in ATC.airspaceInfo["VOR"]:
-    pass
 
 
 k = 0
@@ -192,11 +234,8 @@ while True and k < 50:
 
     # clear screen with background color
     ATC.displaySurface.fill(ATC.BG)
-    # render all fixed pieces of pygame image
-    for entity in ATC.allFixedSprites:
-        pass
-
-    # render all the pieces of the pygame image
+    ATC.displaySurface.blit(source=ATC.bgSurface, dest=(0, 0))
+    # render all moving pieces of pygame image
     for entity in ATC.allMovingSprites:
         ATC.displaySurface.blit(source=entity.boxSurface, dest=entity.boxPosition)
         pygame.draw.line(
