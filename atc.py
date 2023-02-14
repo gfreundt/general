@@ -20,11 +20,11 @@ class Environment:
 
     def __init__(self, *args) -> None:
         # pygame init
-        self.FRAME = (
-            min(pygame.display.Info().current_h, pygame.display.Info().current_w) // 1.1
+        self.WIDTH, self.HEIGHT = (
+            pygame.display.Info().current_w,
+            pygame.display.Info().current_h // 1.1,
         )
-        # self.FRAME = 800
-        self.displaySurface = pygame.display.set_mode((self.FRAME, self.FRAME))
+        self.displaySurface = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
         pygame.display.set_caption("ATC Simulator")
         self.FramePerSec = pygame.time.Clock()
         # load moving plane information
@@ -39,19 +39,22 @@ class Environment:
         self.load_airspace()
 
     def load_airspace(self):
-
         # create VOR entities
-        TRIANGLE = pygame.Surface((10, 10))
-        TRIANGLE.fill(self.BG)
-        pygame.draw.polygon(TRIANGLE, self.WHITE, ((5, 0), (0, 9), (9, 9)), True)
-        CIRCLES = pygame.Surface((10, 10))
-        CIRCLES.fill(self.BG)
-        pygame.draw.circle(CIRCLES, self.WHITE, (5, 5), 5, True)
-        pygame.draw.circle(CIRCLES, self.WHITE, (5, 5), 3, True)
-        symbols = {"TRIANGLE": TRIANGLE, "CIRCLES": CIRCLES}
+        triangle = pygame.Surface((10, 10))
+        triangle.fill(self.BG)
+        pygame.draw.polygon(triangle, self.WHITE, ((5, 0), (0, 9), (9, 9)), True)
+        circles = pygame.Surface((10, 10))
+        circles.fill(self.BG)
+        pygame.draw.circle(circles, self.WHITE, (5, 5), 5, True)
+        pygame.draw.circle(circles, self.WHITE, (5, 5), 3, True)
+        star = pygame.Surface((10, 10))
+        star.fill(self.BG)
+        c = ((5, 1), (7, 4), (9, 5), (7, 6), (5, 9), (3, 6), (1, 5), (3, 4), (5, 1))
+        pygame.draw.polygon(star, self.WHITE, c, True)
+        symbols = {"TRIANGLE": triangle, "CIRCLES": circles, "STAR": star}
 
         # create bckground surface
-        self.bgSurface = pygame.Surface((self.FRAME, self.FRAME))
+        self.bgSurface = pygame.Surface((self.WIDTH, self.HEIGHT))
         self.bgSurface.fill(self.BG)
         # add VOR entities to background surface
         for vor in self.airspaceInfo["VOR"]:
@@ -63,7 +66,7 @@ class Environment:
                     self.WHITE,
                     self.BG,
                 ),
-                dest=(vor["xy"][0] - 10, vor["xy"][1] + 15),
+                dest=(vor["xy"][0] + 14, vor["xy"][1] - 3),
             )
         # add Runway entities to background surface
         for runway in self.airspaceInfo["runways"]:
@@ -88,15 +91,18 @@ class Environment:
         )  # replace with available call signs at airport
         if inbound:
             # coordinates -- must appear from edge of airspace
-            _a = float(random.randint(5, self.FRAME - 5))
-            _b = 5.0 if random.randint(0, 1) < 0.5 else self.FRAME - 5
-            x, y = (_a, _b) if random.randint(0, 1) < 0.5 else (_b, _a)
+            _h = float(random.randint(5, self.WIDTH - 5))
+            _v = float(random.randint(5, self.HEIGHT - 5))
+            if random.randint(0, 1) < 0.5:
+                x, y = (_h, 5.0 if random.randint(0, 1) < 0.5 else self.HEIGHT - 5)
+            else:
+                x, y = (5.0 if random.randint(0, 1) < 0.5 else self.WIDTH - 5, _v)
             # heading -- must be pointing in general direction of runway
-            if x < self.FRAME / 2 and y < self.FRAME / 2:
+            if x < self.WIDTH / 2 and y < self.HEIGHT / 2:
                 h = 90
-            elif x < self.FRAME / 2 and y > self.FRAME / 2:
+            elif x < self.WIDTH / 2 and y > self.HEIGHT / 2:
                 h = 0
-            elif x > self.FRAME / 2 and y < self.FRAME / 2:
+            elif x > self.WIDTH / 2 and y < self.HEIGHT / 2:
                 h = 180
             else:
                 h = 270
@@ -129,7 +135,7 @@ class Environment:
             altitude=altitude,
             speed=speed,
             climb=0,
-            turn=5,
+            turn=0,
             isLanding=False,
             isInbound=inbound,
             isGround=isGround,
@@ -140,6 +146,16 @@ class Environment:
 
     def next_frame(self):
         for plane in self.activeAirplanes:
+            # altitude change requested
+            if plane.altitudeTo > plane.altitude:
+                plane.climb = plane.ascentRate
+            elif plane.altitudeTo < plane.altitude:
+                plane.climb = plane.descentRate
+            # heading change requested
+            if plane.headingTo > plane.heading:
+                plane.turn = plane.turnRate
+            elif plane.headingTo < plane.heading:
+                plane.turn = -plane.turnRate
             plane.move_one_tick()
             # print(
             #     f"{'Arrival' if plane.isInbound else 'Departure'} | {plane.callSign} | coordinates: {plane.x},{plane.y} | heading: {plane.heading} | altitude: {plane.altitude}"
@@ -173,9 +189,9 @@ class Airplane(pygame.sprite.Sprite):
         self.climb = kw["climb"]
         self.turn = kw["turn"]
         # airplane destination
-        self.speedTo = None
-        self.altitudeTo = None
-        self.headingTo = None
+        self.speedTo = self.speed
+        self.altitudeTo = self.altitude
+        self.headingTo = self.heading
         # airplane status
         self.isLanding = kw["isLanding"]
         self.isInbound = kw["isInbound"]
@@ -226,14 +242,15 @@ for _ in range(6):
 
 
 k = 0
-while True and k < 50:
+while True and k < 75:
     for event in pygame.event.get():
         if event.type == QUIT:
             pygame.quit()
             quit()
+        if event.type == KEYDOWN:
+            ATC.activeAirplanes[2].headingTo = 1
 
-    # clear screen with background color
-    ATC.displaySurface.fill(ATC.BG)
+    # refresh screen with fixed background
     ATC.displaySurface.blit(source=ATC.bgSurface, dest=(0, 0))
     # render all moving pieces of pygame image
     for entity in ATC.allMovingSprites:
@@ -244,9 +261,8 @@ while True and k < 50:
         ATC.displaySurface.blit(source=entity.tagText0, dest=entity.tagPosition0)
         ATC.displaySurface.blit(source=entity.tagText1, dest=entity.tagPosition1)
     pygame.display.update()
-
-    # ATC.FramePerSec.tick(60)
+    # recalculate position of all airplanes and pause
     ATC.next_frame()
-    time.sleep(0.5)
+    pygame.time.delay(1000)
 
     k += 1
