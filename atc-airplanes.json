@@ -1,0 +1,44 @@
+{
+    "B747": {
+        "brand": "Boeing",
+        "model": "747",
+        "speed": {
+            "min": 90,
+            "max": 400,
+            "landing": 70,
+            "takeoff": 60
+        },
+        "ascentRate": 10,
+        "descentRate": -12,
+        "turnRate": 7,
+        "acceleration": {
+            "ground": 4,
+            "air": 8
+        },
+        "deceleration": {
+            "ground": 4,
+            "air": 8
+        }
+    },
+    "A320": {
+        "brand": "Airbus",
+        "model": "320",
+        "speed": {
+            "min": 102,
+            "max": 456,
+            "landing": 85,
+            "takeoff": 65
+        },
+        "ascentRate": 11,
+        "descentRate": -15,
+        "turnRate": 9,
+        "acceleration": {
+            "ground": 8,
+            "air": 12
+        },
+        "deceleration": {
+            "ground": 3,
+            "air": 11
+        }
+    }
+}
