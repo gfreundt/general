@@ -8,16 +8,16 @@
             "landing": 70,
             "takeoff": 60
         },
-        "ascentRate": 10,
-        "descentRate": -12,
+        "ascentRate": 100,
+        "descentRate": -120,
         "turnRate": 7,
         "acceleration": {
             "ground": 4,
             "air": 8
         },
         "deceleration": {
-            "ground": 4,
-            "air": 8
+            "ground": -4,
+            "air": -8
         }
     },
     "A320": {
@@ -29,7 +29,7 @@
             "landing": 85,
             "takeoff": 65
         },
-        "ascentRate": 11,
+        "ascentRate": 110,
         "descentRate": -250,
         "turnRate": 9,
         "acceleration": {
@@ -37,8 +37,8 @@
             "air": 12
         },
         "deceleration": {
-            "ground": 3,
-            "air": 11
+            "ground": -3,
+            "air": -11
         }
     }
 }

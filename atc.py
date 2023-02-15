@@ -1,5 +1,5 @@
 import math
-import time
+import os
 import random
 import json
 import pygame
@@ -20,10 +20,9 @@ class Environment:
 
     def __init__(self, *args) -> None:
         # pygame init
-        self.WIDTH, self.HEIGHT = (
-            pygame.display.Info().current_w,
-            pygame.display.Info().current_h // 1.1,
-        )
+        self.WIDTH = 1070  # pygame.display.Info().current_w
+        self.HEIGHT = pygame.display.Info().current_h // 1.1
+        os.environ["SDL_VIDEO_WINDOW_POS"] = "5, 25"
         self.displaySurface = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
         pygame.display.set_caption("ATC Simulator")
         self.FramePerSec = pygame.time.Clock()
@@ -53,7 +52,7 @@ class Environment:
         pygame.draw.polygon(star, self.WHITE, c, True)
         symbols = {"TRIANGLE": triangle, "CIRCLES": circles, "STAR": star}
 
-        # create bckground surface
+        # create background surface
         self.bgSurface = pygame.Surface((self.WIDTH, self.HEIGHT))
         self.bgSurface.fill(self.BG)
         # add VOR entities to background surface
@@ -145,21 +144,40 @@ class Environment:
         self.allMovingSprites.add(_p)
 
     def next_frame(self):
+        def turn_direction(a, b):
+            return "clockwise"
+
+        print(
+            f"{'Arrival' if self.activeAirplanes[2].isInbound else 'Departure'} | {self.activeAirplanes[2].callSign} | coordinates: {self.activeAirplanes[2].x:.2f},{self.activeAirplanes[2].y:.2f} | heading: {self.activeAirplanes[2].heading} | altitude: {self.activeAirplanes[2].altitude}| speed: {self.activeAirplanes[2].speed}"
+        )
+
         for plane in self.activeAirplanes:
-            # altitude change requested
-            if plane.altitudeTo > plane.altitude:
-                plane.climb = plane.ascentRate
-            elif plane.altitudeTo < plane.altitude:
-                plane.climb = plane.descentRate
-            # heading change requested
-            if plane.headingTo > plane.heading:
-                plane.turn = plane.turnRate
-            elif plane.headingTo < plane.heading:
-                plane.turn = -plane.turnRate
+            # altitude change
+            if plane.altitude < plane.altitudeTo:
+                plane.altitude = min(
+                    (plane.altitude + plane.ascentRate), plane.altitudeTo
+                )
+            elif plane.altitude > plane.altitudeTo:
+                plane.altitude = max(
+                    (plane.altitude + plane.descentRate), plane.altitudeTo
+                )
+            # speed change
+            if plane.speed < plane.speedTo:
+                plane.speed = min((plane.speed + plane.accelAir), plane.speedTo)
+            elif plane.speed > plane.speedTo:
+                plane.speed = max((plane.speed + plane.decelAir), plane.speedTo)
+            # heading change
+            clockwise = (plane.headingTo - plane.heading + 360) % 360
+            anticlockwise = (plane.heading - plane.headingTo + 360) % 360
+            if clockwise < anticlockwise:  # clockwise turn
+                plane.heading = fixHeading(plane.heading + plane.turnRate)
+            elif anticlockwise < clockwise:  # anticlockwise turn
+                plane.heading = fixHeading(plane.heading - plane.turnRate)
+            # calculate new x,y coordinates
+            plane.x += (plane.speed / ATC.SCALE) * math.sin(math.radians(plane.heading))
+            plane.y -= (plane.speed / ATC.SCALE) * math.cos(math.radians(plane.heading))
+
             plane.move_one_tick()
-            # print(
-            #     f"{'Arrival' if plane.isInbound else 'Departure'} | {plane.callSign} | coordinates: {plane.x},{plane.y} | heading: {plane.heading} | altitude: {plane.altitude}"
-            # )
 
 
 class Airplane(pygame.sprite.Sprite):
@@ -214,12 +232,6 @@ class Airplane(pygame.sprite.Sprite):
         self.tagPosition0 = self.tagPosition1 = (self.x + 20, self.y + 20)
 
     def move_one_tick(self):
-        # calculate new position
-        self.x += (self.speed / ATC.SCALE) * math.sin(math.radians(self.heading))
-        self.y -= (self.speed / ATC.SCALE) * math.cos(math.radians(self.heading))
-        self.altitude += self.climb
-        new_heading = (self.heading + self.turn) % 360
-        self.heading = new_heading if new_heading >= 0 else (360 + new_heading)
         # update pygame coordinates
         self.boxPosition = (self.x, self.y)
         self.tailPosition0 = (self.x + 3, self.y + 3)
@@ -236,6 +248,8 @@ class Airplane(pygame.sprite.Sprite):
 
 ATC = Environment()
 
+fixHeading = lambda i: i - 360 if i >= 360 else i if i >= 0 else 360 + i
+
 
 for _ in range(6):
     ATC.load_new_plane("A320", ATC.airplaneInfo["A320"], inbound=True)
@@ -248,8 +262,7 @@ while True and k < 75:
             pygame.quit()
             quit()
         if event.type == KEYDOWN:
-            ATC.activeAirplanes[2].headingTo = 1
-
+            ATC.activeAirplanes[2].headingTo = 10
     # refresh screen with fixed background
     ATC.displaySurface.blit(source=ATC.bgSurface, dest=(0, 0))
     # render all moving pieces of pygame image
