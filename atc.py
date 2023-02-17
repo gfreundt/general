@@ -14,20 +14,22 @@ class Environment:
     BLACK = (0, 0, 0)
     RED = (255, 0, 0)
     BG = (25, 72, 80)
+    BG_CONTROLS = (0, 102, 102)
     FONT14 = pygame.font.Font("roboto.ttf", 14)
     FONT12 = pygame.font.Font("roboto.ttf", 12)
     SCALE = 3
 
     def __init__(self, *args) -> None:
         # pygame init
-        os.environ["SDL_VIDEO_WINDOW_POS"] = "5, 25"
+        os.environ["SDL_VIDEO_WINDOW_POS"] = "7, 28"
         self.DISPLAY_WIDTH = pygame.display.Info().current_w
         self.DISPLAY_HEIGHT = pygame.display.Info().current_h // 1.1
-        self.RADAR_WIDTH = int(self.DISPLAY_WIDTH * 0.7)
+        self.RADAR_WIDTH = int(self.DISPLAY_WIDTH * 0.75)
         self.RADAR_HEIGHT = self.DISPLAY_HEIGHT
         self.CONTROLS_WIDTH = int(self.DISPLAY_WIDTH * 0.25)
+        self.MESSAGE_HEIGHT = int(self.DISPLAY_WIDTH * 0.1)
         self.INVENTORY_HEIGHT = int(self.DISPLAY_HEIGHT * 0.5)
-        self.CONSOLE_HEIGHT = int(self.DISPLAY_HEIGHT * 0.3)
+        self.CONSOLE_HEIGHT = int(self.DISPLAY_HEIGHT * 0.2)
         self.WEATHER_HEIGHT = int(self.DISPLAY_HEIGHT * 0.2)
 
         self.displaySurface = pygame.display.set_mode(
@@ -91,34 +93,59 @@ class Environment:
                     ),
                     dest=runway[d]["xy"],
                 )
-        # add CONTROLS
-        self.controlsSurface = pygame.Surface(
-            (self.CONTROLS_WIDTH, self.DISPLAY_HEIGHT)
+        # add Controls background
+        self.controlSurface = pygame.Surface((self.CONTROLS_WIDTH, self.DISPLAY_HEIGHT))
+        self.controlSurface.fill((self.BLACK))
+
+        # add Controls - Message background
+        self.messageSurface = pygame.Surface(
+            (self.CONTROLS_WIDTH, self.MESSAGE_HEIGHT - 2)
         )
-        self.controlsSurface.fill((125, 125, 125))
+        self.messageSurface.fill((self.BG_CONTROLS))
+
+        self.controlSurface.blit(
+            source=self.messageSurface,
+            dest=(0, 0),
+        )
+        # add Controls - Inventory background
         self.inventorySurface = pygame.Surface(
-            (self.CONTROLS_WIDTH, self.INVENTORY_HEIGHT)
+            (self.CONTROLS_WIDTH, self.INVENTORY_HEIGHT - 2)
         )
         self.inventorySurface.fill((30, 130, 60))
-        self.consoleSurface = pygame.Surface((self.CONTROLS_WIDTH, self.CONSOLE_HEIGHT))
-        self.consoleSurface.fill((90, 100, 160))
-        self.weatherSurface = pygame.Surface((self.CONTROLS_WIDTH, self.WEATHER_HEIGHT))
-        self.weatherSurface.fill((130, 0, 70))
 
-        self.controlsSurface.blit(
+        self.controlSurface.blit(
             source=self.inventorySurface,
             dest=(0, 0),
         )
-        self.controlsSurface.blit(
+
+        # add Controls - Console background
+        self.consoleSurface = pygame.Surface(
+            (self.CONTROLS_WIDTH, self.CONSOLE_HEIGHT - 2)
+        )
+        self.consoleSurface.fill((self.BG_CONTROLS))
+        self.controlSurface.blit(
             source=self.consoleSurface,
             dest=(0, self.INVENTORY_HEIGHT),
         )
-        self.controlsSurface.blit(
+        # add Controls - Weather background
+        self.weatherSurface = pygame.Surface(
+            (self.CONTROLS_WIDTH, self.WEATHER_HEIGHT - 2)
+        )
+        self.weatherSurface.fill((self.BG_CONTROLS))
+        img = pygame.transform.scale(
+            pygame.image.load("atc_compass.png"),
+            (self.WEATHER_HEIGHT, self.WEATHER_HEIGHT),
+        )
+        self.weatherSurface.blit(
+            source=img, dest=((self.CONTROLS_WIDTH - self.WEATHER_HEIGHT) // 1.2, 0)
+        )
+        self.controlSurface.blit(
             source=self.weatherSurface,
             dest=(0, self.INVENTORY_HEIGHT + self.CONSOLE_HEIGHT),
         )
+        # consolidate Controls
         self.bgSurface.blit(
-            source=self.controlsSurface,
+            source=self.controlSurface,
             dest=(self.DISPLAY_WIDTH - self.CONTROLS_WIDTH, 0),
         )
 
@@ -128,7 +155,7 @@ class Environment:
         )  # replace with available call signs at airport
         if inbound:
             # coordinates -- must appear from edge of airspace
-            _h = float(random.randint(5, self.DISPLAY_WIDTH - 5))
+            _h = float(random.randint(5, self.RADAR_WIDTH - 5))
             _v = float(random.randint(5, self.DISPLAY_HEIGHT - 5))
             if random.randint(0, 1) < 0.5:
                 x, y = (
@@ -141,11 +168,11 @@ class Environment:
                     _v,
                 )
             # heading -- must be pointing in general direction of runway
-            if x < self.DISPLAY_WIDTH / 2 and y < self.DISPLAY_HEIGHT / 2:
+            if x < self.RADAR_WIDTH / 2 and y < self.RADAR_HEIGHT / 2:
                 h = 90
-            elif x < self.DISPLAY_WIDTH / 2 and y > self.DISPLAY_HEIGHT / 2:
+            elif x < self.RADAR_WIDTH / 2 and y > self.RADAR_HEIGHT / 2:
                 h = 0
-            elif x > self.DISPLAY_WIDTH / 2 and y < self.DISPLAY_HEIGHT / 2:
+            elif x > self.RADAR_WIDTH / 2 and y < self.RADAR_HEIGHT / 2:
                 h = 180
             else:
                 h = 270
@@ -220,7 +247,7 @@ class Environment:
                 plane.heading = (plane.heading - plane.turnRate + 360) % 360
             if min(clockwise, anticlockwise) <= plane.turnRate:
                 plane.heading = plane.headingTo
-            # update pygame moving entities info
+            # update pygame moving entities info - Radar screen
             plane.boxPosition = (plane.x, plane.y)
             plane.tailPosition0 = (plane.x + 3, plane.y + 3)
             plane.tailPosition1 = (
@@ -230,10 +257,18 @@ class Environment:
                 - plane.tailLength * math.cos(math.radians(plane.heading + 180)),
             )
             plane.tagText0 = ATC.FONT12.render(plane.callSign, True, ATC.WHITE, ATC.BG)
-            text1 = f"{(plane.altitude // 1000):03}={plane.speed}"
-            plane.tagText1 = ATC.FONT12.render(text1, True, ATC.WHITE, ATC.BG)
+            plane.tagText1 = ATC.FONT12.render(
+                f"{(plane.altitude // 1000):03}={plane.speed}", True, ATC.WHITE, ATC.BG
+            )
             plane.tagPosition0 = (plane.x + 20, plane.y + 20)
             plane.tagPosition1 = (plane.x + 20, plane.y + 33)
+            # create inventory item
+            plane.inventoryText0 = (
+                f"{plane.callSign}  {plane.heading}°  {plane.altitude}="
+            )
+            plane.inventoryText1 = (
+                f"{plane.aircraft}  {'Arrival' if plane.isInbound else 'Departure'}"
+            )
 
 
 class Airplane(pygame.sprite.Sprite):
