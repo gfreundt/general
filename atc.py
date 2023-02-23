@@ -9,6 +9,13 @@ from pygame.locals import *
 
 pygame.init()
 
+# TODO: runway numbers
+# TODO: up/down arrow on altitude
+# TODO: change color when To hasnt been reached
+# TODO: include airspeed in tags
+# TODO: fix air tags
+# TODO: begin caoture text
+
 
 class Environment:
 
@@ -20,7 +27,7 @@ class Environment:
     INV_COLORS = [(44, 93, 118), (74, 148, 186)]
     FONT14 = pygame.font.Font("roboto.ttf", 14)
     FONT12 = pygame.font.Font("roboto.ttf", 12)
-    SCALE = 40
+    SCALE = 90
 
     def __init__(self, *args) -> None:
 
@@ -190,11 +197,8 @@ class Environment:
         ]
 
     def load_new_plane(self, selected, inbound):
-
-        fixedInfo = self.airplaneData[selected]
-
-        callSign = "AA" + str(
-            random.randint(100, 999)
+        callSign = random.choice(ATC.airspaceInfo["callsigns"]) + str(
+            random.randint(1000, 9999)
         )  # replace with available call signs at airport
         if inbound:
             # coordinates -- must appear from edge of airspace
@@ -241,7 +245,7 @@ class Environment:
         _p = Airplane(
             aircraft=selected,
             callSign=callSign,
-            fixedInfo=fixedInfo,
+            fixedInfo=self.airplaneData[selected],
             x=x,
             y=y,
             heading=heading,
@@ -265,12 +269,10 @@ class Environment:
         )
 
     def next_frame(self):
-
         # process messages
-
         if ATC.messageText and dt.now() - ATC.messageText[0][1] > td(seconds=10):
             ATC.messageText.pop(0)
-
+        # process planes
         for seq, plane in enumerate(self.activeAirplanes):
             # sequential number
             plane.sequence = seq
@@ -440,18 +442,20 @@ def update_pygame_display():
 
 def main():
     k = 0
-    while True and k < 35:
+    while True and k < 200:
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
                 quit()
             if event.type == KEYDOWN:
-                ATC.activeAirplanes[2].headingTo = 10
+                if event.key == K_LEFT:
+                    ATC.activeAirplanes[2].headingTo = 10
+                elif event.key == K_RIGHT:
+                    ATC.activeAirplanes[3].altitudeTo = 10000
         update_pygame_display()
 
-        x = random.randint(0, 100)
-        print(x)
-        if x <= 10 and len(ATC.activeAirplanes) < 7:
+        # chance of loading new plane
+        if random.randint(0, 100) <= 15 and len(ATC.activeAirplanes) < 7:
             ATC.load_new_plane(
                 selected="B747", inbound=True
             )  # if random.randint(0, 1) <= 0.5 else False)
