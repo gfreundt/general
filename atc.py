@@ -413,16 +413,22 @@ class Airplane(pygame.sprite.Sprite):
 def process_command():
     # parse command
     cmd = ATC.commandText.split(" ")
-    ATC.activeAirplanes[1].headingTo = int(cmd[0])
-    text = f"Turn to heading {cmd}."
+    if len(cmd) < 2 or len(cmd) > 3:
+        errormsg = "Error!"
+    else:
+        errormsg = False
+        ATC.activeAirplanes[1].headingTo = int(cmd[0])
 
-    ATC.messageText.append(
-        (
-            f"| {dt.strftime(dt.now(), '%H:%M:%S')} | {text} ",
-            dt.now(),
+        text = f"Turn to heading {cmd}."
+
+    if not errormsg:
+        ATC.messageText.append(
+            (
+                f"| {dt.strftime(dt.now(), '%H:%M:%S')} | {text} ",
+                dt.now(),
+            )
         )
-    )
-    ATC.commandText = ""
+        ATC.commandText = ""
 
 
 def update_pygame_display():
