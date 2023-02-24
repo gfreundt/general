@@ -9,7 +9,7 @@
             "takeoff": 60
         },
         "ascentRate": 100,
-        "descentRate": -120,
+        "descentRate": -420,
         "turnRate": 7,
         "acceleration": {
             "ground": 4,
