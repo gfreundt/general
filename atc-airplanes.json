@@ -8,6 +8,11 @@
             "landing": 70,
             "takeoff": 60
         },
+        "altitude": {
+            "ceiling": 45000,
+            "approach_max": 4000,
+            "floor": 2000
+        },
         "ascentRate": 100,
         "descentRate": -420,
         "turnRate": 7,
@@ -28,6 +33,11 @@
             "max": 456,
             "landing": 85,
             "takeoff": 65
+        },
+        "altitude": {
+            "ceiling": 55000,
+            "approach_max": 5000,
+            "floor": 3000
         },
         "ascentRate": 110,
         "descentRate": -250,

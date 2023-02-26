@@ -62,6 +62,7 @@
                     ]
                 }
             },
+            "width": 2,
             "groundLevel": 608
         },
         {
@@ -92,6 +93,7 @@
                     ]
                 }
             },
+            "width": 3,
             "groundLevel": 608
         }
     ],
