@@ -26,15 +26,15 @@ class Environment:
     SCALE = 90
     FPS = 60
 
+    MAX_AIRPLANES = 9
+    MESSAGE_DISPLAY_TIME = 20  # seconds
     ERRORS = ["*VOID*", "Last Command Not Understood", "Unable to Comply"]
     audioOn = False
+    score = 0
 
 
 class Airspace:
     def __init__(self, *args) -> None:
-
-        self.allMovingSprites = pygame.sprite.Group()
-
         # load plane tech spec data from json file
         with open("atc-airplanes.json", mode="r") as json_file:
             self.airplaneData = json.loads(json_file.read())
@@ -195,7 +195,7 @@ class Airspace:
     def load_new_plane(self, selected, inbound):
         callSign = random.choice(ATC.airspaceInfo["callsigns"]) + str(
             random.randint(1000, 9999)
-        )  # replace with available call signs at airport
+        )
         if inbound:
             # coordinates -- must appear from edge of airspace
             _h = float(random.randint(5, self.RADAR_WIDTH - 5))
@@ -210,22 +210,16 @@ class Airspace:
                     15.0 if random.randint(0, 1) < 0.5 else self.RADAR_WIDTH - 15,
                     _v,
                 )
-            # heading -- must be pointing in general direction of runway
-            if x < self.RADAR_WIDTH / 2 and y < self.RADAR_HEIGHT / 2:
-                h = 90
-            elif x < self.RADAR_WIDTH / 2 and y > self.RADAR_HEIGHT / 2:
-                h = 0
-            elif x > self.RADAR_WIDTH / 2 and y < self.RADAR_HEIGHT / 2:
-                h = 180
-            else:
-                h = 270
-            heading = random.randint(h, h + 90)
-            # altitude
+            heading = ATC.calc_heading(
+                x,
+                y,
+                ATC.airspaceInfo["runways"][0]["from"]["x"],
+                ATC.airspaceInfo["runways"][0]["from"]["y"],
+            ) + random.randint(-30, 30)
             altitude = random.randint(30000, 80000)
-            # speed
             speed = random.randint(200, 500)
-            # status
             isGround = False
+            finalDestination = ""
         else:
             # select random runway
             runway = random.choice(ATC.airspaceInfo["runways"])
@@ -240,6 +234,8 @@ class Airspace:
             speed = 0
             # status
             isGround = True
+            # random destination
+            finalDestination = random.choice(ATC.airspaceInfo["VOR"])
         # add airplane instance to active planes
         _p = Airplane(
             aircraft=selected,
@@ -255,12 +251,11 @@ class Airspace:
             isLanding=False,
             isInbound=inbound,
             isGround=isGround,
+            finalDestination=finalDestination,
         )
         self.activeAirplanes.append(_p)
-        # add sprite to pygame framework
-        self.allMovingSprites.add(_p)
         # announce new plane in message box
-        text = f"{callSign} {'Arriving' if inbound else 'Departing from Runway '+heads[0]['tag']['text']}"
+        text = f"{callSign} {'Arriving' if inbound else 'Departing from Runway '+heads[0]['tag']['text']+' to '+finalDestination['name']}"
         ATC.messageText.append(
             (
                 f"| {dt.strftime(dt.now(), '%H:%M:%S')} | {text}",
@@ -292,7 +287,9 @@ class Airspace:
 
     def next_frame(self):
         # process messages
-        if ATC.messageText and dt.now() - ATC.messageText[0][1] > td(seconds=20):
+        if ATC.messageText and dt.now() - ATC.messageText[0][1] > td(
+            seconds=ENV.MESSAGE_DISPLAY_TIME
+        ):
             ATC.messageText.pop(0)
         # process planes
         for seq, plane in enumerate(self.activeAirplanes):
@@ -384,7 +381,7 @@ class Airspace:
             )
             plane.inventoryText.blit(
                 ENV.FONT12.render(
-                    f"{plane.aircraft}  {'Arrival' if plane.isInbound else 'Departure'}",
+                    f"{plane.aircraft}  {'Arrival' if plane.isInbound else f'Departure --> '+plane.finalDestination['name']}",
                     True,
                     ENV.WHITE,
                     color,
@@ -399,6 +396,19 @@ class Airspace:
                 40,
             )
             plane.inventoryColor = ENV.INV_COLORS[0 if plane.isInbound else 1]
+            # check if plane has finised trip
+            if plane.isInbound:
+                pass  # TODO: check for inbound landing plane
+            else:
+                x, y = plane.finalDestination["x"], plane.finalDestination["y"]
+                if (
+                    x - 10 <= int(plane.x) <= x + 10
+                    and y - 10 <= int(plane.y) <= y + 10
+                    and plane.altitude >= ATC.airspaceInfo["altitudes"]["handOff"]
+                ):
+                    plane.onRadar = False
+                    ATC.activeAirplanes.remove(plane)
+                    ENV.score += 1
 
 
 class Airplane(pygame.sprite.Sprite):
@@ -436,6 +446,7 @@ class Airplane(pygame.sprite.Sprite):
         self.altitudeTo = self.altitude
         self.headingTo = self.heading
         self.goToVOR = False
+        self.finalDestination = kw["finalDestination"]
         # airplane status
         self.isLanding = kw["isLanding"]
         self.isInbound = kw["isInbound"]
@@ -509,6 +520,10 @@ def process_command():
             else:
                 error = 2
         elif cmd[0] == "L":
+            runway_selected = [i for i in ATC.airspaceInfo["runways"]]  int(cmd[1]) 
+            altitude_check = plane.altitude <= plane.altitudeApproach
+            delta_heading = plane.heading - ATC.calc_heading()
+            heading_check = 
             # define landing triangle for each runway head
             # conditions:
             #   must be in triangle
@@ -589,7 +604,8 @@ def update_pygame_display():
     for surfaces in ATC.allLevel2Surfaces:
         surfaces[0].blit(source=surfaces[1], dest=(0, 0))
     # load Radar main surface + Inventory main surface
-    for entity in ATC.allMovingSprites:
+    for entity in ATC.activeAirplanes:
+        print("entity", entity)
         if entity.onRadar:
             ATC.radarSurface.blit(source=entity.boxSurface, dest=entity.boxPosition)
             pygame.draw.line(
@@ -625,13 +641,12 @@ def update_pygame_display():
     for surfaces in ATC.allLevel2Surfaces:
         ATC.displaySurface.blit(source=surfaces[0], dest=surfaces[2])
 
-    pygame.display.flip()
+    pygame.display.update()
 
 
 def main():
     clock = pygame.time.Clock()
     delay = ENV.FPS
-    # ATC.next_frame()
     while True:
         clock.tick(ENV.FPS)
         for event in pygame.event.get():
@@ -649,7 +664,10 @@ def main():
             ATC.next_frame()
             delay = ENV.FPS
             # chance of loading new plane
-            if random.randint(0, 100) <= 15 and len(ATC.activeAirplanes) < 9:
+            if (
+                random.randint(0, 100) <= 15
+                and len(ATC.activeAirplanes) < ENV.MAX_AIRPLANES
+            ):
                 ATC.load_new_plane(
                     selected="B747",
                     inbound=True if random.randint(0, 1) <= 0.8 else False,

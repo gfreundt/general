@@ -4,7 +4,7 @@
         "model": "747",
         "speed": {
             "min": 160,
-            "max": 400,
+            "max": 1000,
             "cruising": 320,
             "landing": 70,
             "takeoff": 120

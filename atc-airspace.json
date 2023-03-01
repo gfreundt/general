@@ -1,4 +1,8 @@
 {
+    "altitudes": {
+        "groundLevel": 608,
+        "handOff": 2500
+    },
     "VOR": [
         {
             "name": "GFE",
@@ -56,8 +60,7 @@
                     ]
                 }
             },
-            "width": 2,
-            "groundLevel": 608
+            "width": 2
         },
         {
             "number": 2,
@@ -83,8 +86,7 @@
                     ]
                 }
             },
-            "width": 3,
-            "groundLevel": 28
+            "width": 3
         }
     ],
     "callsigns": [
