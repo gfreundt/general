@@ -23,7 +23,8 @@ class Environment:
     FONT12 = pygame.font.Font("seguisym.ttf", 12)
     FONT14 = pygame.font.Font("seguisym.ttf", 14)
     FONT20 = pygame.font.Font("roboto.ttf", 20)
-    SPEED = 90
+    SCALE = 90
+    SPEED = 1
     FPS = 60
 
     MAX_AIRPLANES = 9
@@ -299,8 +300,8 @@ class Airspace:
             # sequential number
             plane.sequence = seq
             # calculate new x,y coordinates
-            plane.x += (plane.speed / ENV.SPEED) * math.sin(math.radians(plane.heading))
-            plane.y -= (plane.speed / ENV.SPEED) * math.cos(math.radians(plane.heading))
+            plane.x += (plane.speed / ENV.SCALE) * math.sin(math.radians(plane.heading))
+            plane.y -= (plane.speed / ENV.SCALE) * math.cos(math.radians(plane.heading))
             # speed change
             if plane.speed < plane.speedTo:
                 plane.speed = min((plane.speed + plane.accelAir), plane.speedTo)
@@ -308,7 +309,7 @@ class Airspace:
                 plane.speed = max((plane.speed + plane.decelAir), plane.speedTo)
             # only change altitude and heading if plane is airborne
             left_right = "="
-            if not plane.isTakeoff and plane.onRadar:
+            if not plane.isTakeoff and plane.onRadar and not plane.isGround:
                 # altitude change
                 if plane.altitude < plane.altitudeTo:
                     plane.altitude = int(
@@ -339,7 +340,7 @@ class Airspace:
                 plane.isTakeoff = False
 
             # recalculate descent rate if plane is landing
-            if plane.isLanding:
+            if plane.isLanding and not plane.isGround:
                 s = math.sqrt(
                     (plane.x - plane.goToFixed[0]) ** 2
                     + (plane.y - plane.goToFixed[0]) ** 2
@@ -348,15 +349,19 @@ class Airspace:
                 # plane cannot descent faster than max descent rate
                 plane.descentRate = max(
                     plane.descentRate,
-                    -(plane.altitude - plane.altitudeTo)
-                    / (s / (plane.speed / ENV.SPEED)),
+                    min(
+                        -(plane.altitude - plane.altitudeTo)
+                        / (s / (plane.speed / ENV.SCALE)),
+                        -10,
+                    ),
                 )
+                print(plane.descentRate)
 
                 # check if runway head reached and is correct altitude
                 x, y = plane.goToFixed[0], plane.goToFixed[1]
                 if (
-                    x - 10 <= int(plane.x) <= x + 10
-                    and y - 10 <= int(plane.y) <= y + 10
+                    x - 2 <= int(plane.x) <= x + 2
+                    and y - 2 <= int(plane.y) <= y + 2
                     and plane.altitude == plane.altitudeTo
                 ):
                     x, y = (
@@ -431,7 +436,10 @@ class Airspace:
             plane.inventoryColor = ENV.INV_COLORS[0 if plane.isInbound else 1]
             # check if plane has finised trip
             if plane.isInbound:
-                pass  # TODO: check for inbound landing plane
+                if plane.isGround and plane.speed == 0:
+                    plane.onRadar = False
+                    ATC.activeAirplanes.remove(plane)
+                    ENV.score += 1
             else:
                 x, y = plane.finalDestination["x"], plane.finalDestination["y"]
                 if (
@@ -528,7 +536,7 @@ def process_keydown(key):
     elif key in (K_KP_ENTER, K_RETURN, K_BACKSLASH):
         process_command()
     elif key == K_TAB:
-        ENV.SPEED = 10
+        ENV.SPEED = 5 if ENV.SPEED == 1 else 1
 
 
 def process_command():
@@ -697,7 +705,7 @@ def update_pygame_display():
 
 def main():
     clock = pygame.time.Clock()
-    delay = ENV.FPS
+    delay = ENV.FPS // ENV.SPEED
     while True:
         clock.tick(ENV.FPS)
         for event in pygame.event.get():
@@ -713,7 +721,7 @@ def main():
         delay -= 1
         if delay == 0:
             ATC.next_frame()
-            delay = ENV.FPS
+            delay = ENV.FPS // ENV.SPEED
             # chance of loading new plane
             if (
                 random.randint(0, 100) <= 15
