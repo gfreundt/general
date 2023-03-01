@@ -6,7 +6,7 @@
             "min": 160,
             "max": 1000,
             "cruising": 320,
-            "landing": 70,
+            "landing": 165,
             "takeoff": 120
         },
         "altitude": {
