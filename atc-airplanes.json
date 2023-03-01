@@ -3,10 +3,11 @@
         "brand": "Boeing",
         "model": "747",
         "speed": {
-            "min": 90,
+            "min": 160,
             "max": 400,
+            "cruising": 320,
             "landing": 70,
-            "takeoff": 60
+            "takeoff": 120
         },
         "altitude": {
             "ceiling": 45000,
@@ -15,10 +16,10 @@
         },
         "ascentRate": 100,
         "descentRate": -420,
-        "turnRate": 7,
+        "turnRate": 3,
         "acceleration": {
             "ground": 4,
-            "air": 8
+            "air": 3
         },
         "deceleration": {
             "ground": -4,
@@ -31,6 +32,7 @@
         "speed": {
             "min": 102,
             "max": 456,
+            "cruising": 405,
             "landing": 85,
             "takeoff": 65
         },

@@ -1,10 +1,12 @@
 import math
 import random
-import json
+import json, os
 from datetime import datetime as dt
 from datetime import timedelta as td
 import pygame
 from pygame.locals import *
+from gtts import gTTS
+
 
 pygame.init()
 
@@ -24,7 +26,8 @@ class Environment:
     SCALE = 90
     FPS = 60
 
-    ERRORS = ["", "Last Command Not Understood", "Unable to Comply"]
+    ERRORS = ["*VOID*", "Last Command Not Understood", "Unable to Comply"]
+    audioOn = False
 
 
 class Airspace:
@@ -82,7 +85,9 @@ class Airspace:
         self.radarBG.fill(ENV.BG)
         # add VOR entities to Radar background surface
         for vor in self.airspaceInfo["VOR"]:
-            self.radarBG.blit(source=symbols[vor["symbol"]], dest=(vor["xy"]))
+            self.radarBG.blit(
+                source=symbols[vor["symbol"]], dest=((vor["x"], vor["y"]))
+            )
             self.radarBG.blit(
                 source=ENV.FONT14.render(
                     vor["name"],
@@ -90,15 +95,15 @@ class Airspace:
                     ENV.WHITE,
                     ENV.BG,
                 ),
-                dest=(vor["xy"][0] + 14, vor["xy"][1] - 3),
+                dest=(vor["x"] + 14, vor["y"] - 3),
             )
         # add Runway entities to Radar background surface
         for runway in self.airspaceInfo["runways"]:
             pygame.draw.line(
                 self.radarBG,
                 ENV.WHITE,
-                runway["from"]["xy"],
-                runway["to"]["xy"],
+                (runway["from"]["x"], runway["from"]["y"]),
+                (runway["to"]["x"], runway["to"]["y"]),
                 width=runway["width"],
             )
             for d in ("from", "to"):
@@ -225,13 +230,10 @@ class Airspace:
             # select random runway
             runway = random.choice(ATC.airspaceInfo["runways"])
             # select random head (later update with wind direction)
-            heads = [runway["from"]["xy"], runway["to"]["xy"]]
+            heads = [runway["from"], runway["to"]]
             random.shuffle(heads)
-            print("heads", heads)
-            x, y = heads[0]
-            heading = math.degrees(
-                math.atan((heads[1][0] - heads[1][1] / heads[0][0] - heads[0][1]))
-            )
+            x, y = (heads[0]["x"], heads[0]["y"])
+            heading = self.calc_heading(x, y, heads[1]["x"], heads[1]["y"])
             # altitude
             altitude = 680  # replace with runway altitude
             # speed
@@ -258,12 +260,35 @@ class Airspace:
         # add sprite to pygame framework
         self.allMovingSprites.add(_p)
         # announce new plane in message box
+        text = f"{callSign} {'Arriving' if inbound else 'Departing from Runway '+heads[0]['tag']['text']}"
         ATC.messageText.append(
             (
-                f"| {dt.strftime(dt.now(), '%H:%M:%S')} | {callSign} {'Arriving' if inbound else 'Departing'}",
+                f"| {dt.strftime(dt.now(), '%H:%M:%S')} | {text}",
                 dt.now(),
             )
         )
+        ATC.play_audio_message(text)
+
+    def calc_heading(self, x0, y0, x1, y1):
+        a = abs(math.degrees(math.atan((y1 - y0) / (x1 - x0))))
+        if x0 > x1 and y0 < y1:
+            return int(270 - a)
+        elif x0 < x1 and y0 < y1:
+            return int(90 + a)
+        elif x0 > x1 and y0 > y1:
+            return int(270 + a)
+        else:
+            return int(90 - a)
+
+    def play_audio_message(self, message):
+        if ENV.audioOn == False:
+            return
+        gTTS(
+            text=message,
+            lang="en",
+            slow=False,
+        ).save("temp.wav")
+        os.system("start temp.wav")
 
     def next_frame(self):
         # process messages
@@ -276,35 +301,45 @@ class Airspace:
             # calculate new x,y coordinates
             plane.x += (plane.speed / ENV.SCALE) * math.sin(math.radians(plane.heading))
             plane.y -= (plane.speed / ENV.SCALE) * math.cos(math.radians(plane.heading))
-            # altitude change
-            if plane.altitude < plane.altitudeTo:
-                plane.altitude = min(
-                    (plane.altitude + plane.ascentRate), plane.altitudeTo
-                )
-            elif plane.altitude > plane.altitudeTo:
-                plane.altitude = max(
-                    (plane.altitude + plane.descentRate), plane.altitudeTo
-                )
             # speed change
             if plane.speed < plane.speedTo:
                 plane.speed = min((plane.speed + plane.accelAir), plane.speedTo)
             elif plane.speed > plane.speedTo:
                 plane.speed = max((plane.speed + plane.decelAir), plane.speedTo)
-            # heading change
+            # only change altitude and heading if plane is airborne
             left_right = "="
-            clockwise = (plane.headingTo - plane.heading + 360) % 360
-            anticlockwise = (plane.heading - plane.headingTo + 360) % 360
-            if clockwise < anticlockwise:  # clockwise turn
-                plane.heading = (plane.heading + plane.turnRate + 360) % 360
-                left_right = ">"
-            elif anticlockwise < clockwise:  # anticlockwise turn
-                plane.heading = (plane.heading - plane.turnRate + 360) % 360
-                left_right = "<"
-            if min(clockwise, anticlockwise) <= plane.turnRate:
-                plane.heading = plane.headingTo
+            if not plane.isTakeoff and plane.onRadar:
+                # altitude change
+                if plane.altitude < plane.altitudeTo:
+                    plane.altitude = min(
+                        (plane.altitude + plane.ascentRate), plane.altitudeTo
+                    )
+                elif plane.altitude > plane.altitudeTo:
+                    plane.altitude = max(
+                        (plane.altitude + plane.descentRate), plane.altitudeTo
+                    )
+                # recalculate heading if fixed on VOR
+                if plane.goToVOR:
+                    plane.headingTo = ATC.calc_heading(
+                        plane.x, plane.y, plane.goToVOR[0], plane.goToVOR[1]
+                    )
+                # heading change
+                clockwise = (plane.headingTo - plane.heading + 360) % 360
+                anticlockwise = (plane.heading - plane.headingTo + 360) % 360
+                if clockwise < anticlockwise:  # clockwise turn
+                    plane.heading = (plane.heading + plane.turnRate + 360) % 360
+                    left_right = ">"
+                elif anticlockwise < clockwise:  # anticlockwise turn
+                    plane.heading = (plane.heading - plane.turnRate + 360) % 360
+                    left_right = "<"
+                if min(clockwise, anticlockwise) <= plane.turnRate:
+                    plane.heading = plane.headingTo
+            # check for end of takeoff conditions
+            if plane.isTakeoff and plane.speed >= plane.speedTakeoff:
+                plane.isTakeoff = False
             # update pygame moving entities info - Radar screen
-            plane.boxPosition = (plane.x, plane.y)
-            plane.tailPosition0 = (plane.x + 3, plane.y + 3)
+            plane.boxPosition = plane.boxSurface.get_rect(center=(plane.x, plane.y))
+            plane.tailPosition0 = (plane.x, plane.y)
             plane.tailPosition1 = (
                 plane.x
                 + plane.tailLength * math.sin(math.radians(plane.heading + 180)),
@@ -340,7 +375,7 @@ class Airspace:
             )
             plane.inventoryText.blit(
                 ENV.FONT12.render(
-                    f"{plane.callSign}  {plane.headingTo:03}°{left_right}  {plane.altitudeTo} {up_down}  {plane.speedTo} {accel}",
+                    f"{plane.callSign}  {f'{plane.headingTo:03}°' if not plane.goToVOR else plane.goToVORName}{left_right}  {plane.altitudeTo} {up_down}  {plane.speedTo} {accel}",
                     True,
                     ENV.WHITE,
                     color,
@@ -374,6 +409,7 @@ class Airplane(pygame.sprite.Sprite):
         self.callSign = kw["callSign"]
         self.speedMin = kw["fixedInfo"]["speed"]["min"]
         self.speedMax = kw["fixedInfo"]["speed"]["max"]
+        self.speedCruise = kw["fixedInfo"]["speed"]["cruising"]
         self.speedLand = kw["fixedInfo"]["speed"]["landing"]
         self.speedTakeoff = kw["fixedInfo"]["speed"]["takeoff"]
         self.ascentRate = kw["fixedInfo"]["ascentRate"]
@@ -399,6 +435,7 @@ class Airplane(pygame.sprite.Sprite):
         self.speedTo = self.speed
         self.altitudeTo = self.altitude
         self.headingTo = self.heading
+        self.goToVOR = False
         # airplane status
         self.isLanding = kw["isLanding"]
         self.isInbound = kw["isInbound"]
@@ -406,13 +443,13 @@ class Airplane(pygame.sprite.Sprite):
         self.onRadar = True if self.isInbound else False
         self.isTakeoff = False
         # create pygame entity - airplane box
-        self.boxSurface = pygame.Surface((6, 6))
-        self.boxSurface.fill(ENV.WHITE)
-        self.boxPosition = (self.x, self.y)
+        self.boxSurface = pygame.Surface((9, 9))
+        pygame.draw.rect(self.boxSurface, ENV.WHITE, (0, 0, 8, 8), width=1)
+        self.boxPosition = (-10, -10)  # dummy data
         # create pygame entity - airplane tail
         self.tailLength = 16
-        self.tailPosition0 = (self.x + 3, self.y + 3)
-        self.tailPosition1 = (self.x, self.y)
+        self.tailPosition0 = (0, 0)
+        self.tailPosition1 = (0, 0)
         # create pygame entity - airplane tag (dummy data)
         self.tagText0 = self.tagText1 = self.inventoryText = ENV.FONT12.render(
             " ",
@@ -438,6 +475,8 @@ def process_click(pos):
 def process_keydown(key):
     if key == 27:
         quit()
+    if ATC.commandText in ENV.ERRORS:
+        ATC.commandText = ""
     if 97 <= key <= 122 or 48 <= key <= 57 or key == K_SPACE:  # A - Z + 0 - 9
         ATC.commandText += chr(key).upper()
     elif key == K_BACKSPACE:
@@ -465,7 +504,10 @@ def process_command():
         if cmd[0] == "H":
             # go to runway head
             if not plane.onRadar:
-                print("runway head")
+                plane.onRadar = True
+                text = "Proceed to runway and await clearance."
+            else:
+                error = 2
         elif cmd[0] == "L":
             # define landing triangle for each runway head
             # conditions:
@@ -481,27 +523,49 @@ def process_command():
             #   remove plane from list and add 1 to score
             pass  # land
         elif cmd[0] == "T":
-            #   go to head (random time 2 - 15 sec)
-            #   heading = runway heading, accel = ground accel
-            #   when speed = takeoff speed --> begin climb to set altitude
-            pass  # take off
+            # full takeoff
+            if not plane.onRadar or (plane.onRadar and plane.speed == 0):
+                plane.onRadar = True
+                plane.speedTo = (
+                    plane.speedCruise if not plane.speedTo else plane.speedTo
+                )
+                plane.isTakeoff = True
+                plane.altitudeTo = max(plane.altitudeTo, plane.altitudeMin)
+                text = "Cleared for Takeoff"
+            else:
+                error = 2
         else:
             error = 1
     elif len(cmd) == 2:
-        new = int(cmd[1])
         if cmd[0] == "C":  # change heading to fixed number or VOR
-            plane.headingTo = int(cmd[1])
-            text = f"Tower to {flt}. New heading {int(cmd[1])}"
+            if cmd[1].isdigit():  # chose fixed heading
+                plane.headingTo = int(cmd[1])
+                plane.goToVOR = False
+                text = f"New heading {int(cmd[1])}"
+            else:  # chose VOR
+                if cmd[1] in [i["name"] for i in ATC.airspaceInfo["VOR"]]:
+                    VORxy = [
+                        (i["x"], i["y"])
+                        for i in ATC.airspaceInfo["VOR"]
+                        if i["name"] == cmd[1]
+                    ][0]
+                    plane.goToVOR = (VORxy[0], VORxy[1])
+                    plane.goToVORName = cmd[1].strip()
+                    text = f"Head to {plane.goToVORName}"
+                else:
+                    error = 2
         elif cmd[0] == "A":  # change altitude
+            new = int(cmd[1])
             if plane.altitudeMin < new * 1000 < plane.altitudeMax:
                 plane.altitudeTo = new * 1000
-                text = f"Tower to {flt}. New altitude {new*1000}"
+                text = f"New altitude {new*1000}"
             else:
                 error = 2
         elif cmd[0] == "S":  # change speed
+            new = int(cmd[1])
             if plane.speedMin < new < plane.speedMax:
                 plane.speedTo = int(cmd[1])
-                text = f"Tower to {flt}. New speed {int(cmd[1])}"
+                text = f"New speed {int(cmd[1])}"
             else:
                 error = 2
     else:
@@ -512,10 +576,11 @@ def process_command():
     else:
         ATC.messageText.append(
             (
-                f"| {dt.strftime(dt.now(), '%H:%M:%S')} | {text} ",
+                f"| {dt.strftime(dt.now(), '%H:%M:%S')} | Tower to {flt}: {text}",
                 dt.now(),
             )
         )
+        ATC.play_audio_message(text)
         ATC.commandText = ""
 
 
@@ -525,12 +590,13 @@ def update_pygame_display():
         surfaces[0].blit(source=surfaces[1], dest=(0, 0))
     # load Radar main surface + Inventory main surface
     for entity in ATC.allMovingSprites:
-        ATC.radarSurface.blit(source=entity.boxSurface, dest=entity.boxPosition)
-        pygame.draw.line(
-            ATC.radarSurface, ENV.RED, entity.tailPosition0, entity.tailPosition1
-        )
-        ATC.radarSurface.blit(source=entity.tagText0, dest=entity.tagPosition0)
-        ATC.radarSurface.blit(source=entity.tagText1, dest=entity.tagPosition1)
+        if entity.onRadar:
+            ATC.radarSurface.blit(source=entity.boxSurface, dest=entity.boxPosition)
+            pygame.draw.line(
+                ATC.radarSurface, ENV.RED, entity.tailPosition0, entity.tailPosition1
+            )
+            ATC.radarSurface.blit(source=entity.tagText0, dest=entity.tagPosition0)
+            ATC.radarSurface.blit(source=entity.tagText1, dest=entity.tagPosition1)
         ATC.inventorySurface.blit(
             source=entity.inventoryText, dest=entity.inventoryPosition
         )
@@ -559,7 +625,7 @@ def update_pygame_display():
     for surfaces in ATC.allLevel2Surfaces:
         ATC.displaySurface.blit(source=surfaces[0], dest=surfaces[2])
 
-    pygame.display.update()
+    pygame.display.flip()
 
 
 def main():
@@ -586,13 +652,11 @@ def main():
             if random.randint(0, 100) <= 15 and len(ATC.activeAirplanes) < 9:
                 ATC.load_new_plane(
                     selected="B747",
-                    inbound=False if random.randint(0, 1) <= 0.8 else False,
+                    inbound=True if random.randint(0, 1) <= 0.8 else False,
                 )
 
 
 ENV = Environment()
 ATC = Airspace()
-# for _ in range(6):
-#     ATC.load_new_plane("A320", ATC.airplaneData["A320"], inbound=True)
 
 main()
