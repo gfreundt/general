@@ -211,15 +211,12 @@ class Airspace:
                     15.0 if random.randint(0, 1) < 0.5 else self.RADAR_WIDTH - 15,
                     _v,
                 )
-            heading = (
-                ATC.calc_heading(
-                    x,
-                    y,
-                    ATC.airspaceInfo["runways"][0]["from"]["x"],
-                    ATC.airspaceInfo["runways"][0]["from"]["y"],
-                )
-                + random.randint(-30, 30)
-            )
+            heading = ATC.calc_heading(
+                x,
+                y,
+                ATC.airspaceInfo["runways"][0]["from"]["x"],
+                ATC.airspaceInfo["runways"][0]["from"]["y"],
+            ) + random.randint(-30, 30)
             altitude = random.randint(30000, 80000)
             speed = random.randint(200, 500)
             isGround = False
@@ -304,9 +301,23 @@ class Airspace:
             plane.y -= (plane.speed / ENV.SCALE) * math.cos(math.radians(plane.heading))
             # speed change
             if plane.speed < plane.speedTo:
-                plane.speed = min((plane.speed + plane.accelAir), plane.speedTo)
+                plane.speed = min(
+                    (
+                        plane.speed + plane.accelGround
+                        if plane.isGround
+                        else plane.accelAir
+                    ),
+                    plane.speedTo,
+                )
             elif plane.speed > plane.speedTo:
-                plane.speed = max((plane.speed + plane.decelAir), plane.speedTo)
+                plane.speed = max(
+                    (
+                        plane.speed + plane.decelGround
+                        if plane.isGround
+                        else plane.decelAir
+                    ),
+                    plane.speedTo,
+                )
             # only change altitude and heading if plane is airborne
             left_right = "="
             if not plane.isTakeoff and plane.onRadar and not plane.isGround:
@@ -343,21 +354,17 @@ class Airspace:
             if plane.isLanding and not plane.isGround:
                 s = math.sqrt(
                     (plane.x - plane.goToFixed[0]) ** 2
-                    + (plane.y - plane.goToFixed[0]) ** 2
+                    + (plane.y - plane.goToFixed[1]) ** 2
                 )
 
                 # plane cannot descent faster than max descent rate
                 plane.descentRate = max(
                     plane.descentRate,
-                    min(
-                        -(plane.altitude - plane.altitudeTo)
-                        / (s / (plane.speed / ENV.SCALE)),
-                        -10,
-                    ),
+                    -(plane.altitude - plane.altitudeTo)
+                    / (s / (plane.speed / ENV.SCALE)),
                 )
-                print(plane.descentRate)
 
-                # check if runway head reached and is correct altitude
+                # check if touchdown
                 x, y = plane.goToFixed[0], plane.goToFixed[1]
                 if (
                     x - 2 <= int(plane.x) <= x + 2
