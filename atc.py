@@ -29,6 +29,7 @@ class Environment:
 
     MAX_AIRPLANES = 9
     MESSAGE_DISPLAY_TIME = 20  # seconds
+    ILS_ANGLE = 20  # degrees
     ERRORS = ["*VOID*", "Last Command Not Understood", "Unable to Comply"]
     audioOn = False
     score = 0
@@ -103,11 +104,11 @@ class Airspace:
             pygame.draw.line(
                 self.radarBG,
                 ENV.WHITE,
-                (runway["from"]["x"], runway["from"]["y"]),
-                (runway["to"]["x"], runway["to"]["y"]),
+                (runway["headL"]["x"], runway["headL"]["y"]),
+                (runway["headR"]["x"], runway["headR"]["y"]),
                 width=runway["width"],
             )
-            for d in ("from", "to"):
+            for d in ("headL", "headR"):
                 self.radarBG.blit(
                     source=ENV.FONT14.render(
                         runway[d]["tag"]["text"], True, ENV.WHITE, ENV.BG
@@ -211,13 +212,16 @@ class Airspace:
                     15.0 if random.randint(0, 1) < 0.5 else self.RADAR_WIDTH - 15,
                     _v,
                 )
-            heading = ATC.calc_heading(
-                x,
-                y,
-                ATC.airspaceInfo["runways"][0]["from"]["x"],
-                ATC.airspaceInfo["runways"][0]["from"]["y"],
-            ) + random.randint(-30, 30)
-            altitude = random.randint(50000, 8000)
+            heading = (
+                ATC.calc_heading(
+                    x,
+                    y,
+                    ATC.airspaceInfo["runways"][0]["headL"]["x"],
+                    ATC.airspaceInfo["runways"][0]["headL"]["y"],
+                )
+                + random.randint(-30, 30)
+            )
+            altitude = random.randint(5000, 8000)
             speed = random.randint(200, 500)
             isGround = False
             finalDestination = ""
@@ -225,7 +229,7 @@ class Airspace:
             # select random runway
             runway = random.choice(ATC.airspaceInfo["runways"])
             # select random head (later update with wind direction)
-            heads = [runway["from"], runway["to"]]
+            heads = [runway["headL"], runway["headR"]]
             random.shuffle(heads)
             x, y = (heads[0]["x"], heads[0]["y"])
             heading = self.calc_heading(x, y, heads[1]["x"], heads[1]["y"])
@@ -372,8 +376,8 @@ class Airspace:
                     and plane.altitude == plane.altitudeTo
                 ):
                     x, y = (
-                        ATC.airspaceInfo["runways"][0]["to"]["x"],
-                        ATC.airspaceInfo["runways"][0]["to"]["y"],
+                        ATC.airspaceInfo["runways"][0]["headR"]["x"],
+                        ATC.airspaceInfo["runways"][0]["headR"]["y"],
                     )
                     plane.heading = ATC.calc_heading(plane.x, plane.y, x, y)
                     plane.speedTo = 0
@@ -569,30 +573,37 @@ def process_command():
                 text = "Proceed to runway and await clearance."
             else:
                 error = 2
-        elif cmd[0] == "L":
-            # ladning condition: must be at or below approach altitude
+        elif cmd[0] == "L":  # TODO: go around
+            # landing condition: must be at or below approach altitude
             altitude_check = plane.altitude <= plane.altitudeApproach
             x, y = (
-                ATC.airspaceInfo["runways"][0]["from"]["x"],
-                ATC.airspaceInfo["runways"][0]["from"]["y"],
+                ATC.airspaceInfo["runways"][0]["headL"]["x"],
+                ATC.airspaceInfo["runways"][0]["headL"]["y"],
             )
             # landing condition: must be heading within +/- 15 degress from runqay headinng
             delta_heading = abs(
-                plane.heading - ATC.calc_heading(plane.x, plane.y, x, y)
+                plane.heading - ATC.airspaceInfo["runways"][0]["headingLtoR"]
             )
             delta_heading = (
                 360 - delta_heading if delta_heading > 180 else delta_heading
             )
             heading_check = delta_heading <= 15
-            print(f"{delta_heading=}  {ATC.calc_heading(plane.x, plane.y, x, y)=}")
-            # landing condition: must be inside ILS traingle
-            ILSTriangle_check = 1
+            # landing condition: must be inside ILS triangle (within angle of center line)
+            delta_heading = abs(
+                ATC.calc_heading(plane.x, plane.y, x, y)
+                - ATC.airspaceInfo["runways"][0]["headingLtoR"]
+            )
+            delta_heading = (
+                360 - delta_heading if delta_heading > 180 else delta_heading
+            )
+            print(delta_heading)
+            ILSTriangle_check = delta_heading <= ENV.ILS_ANGLE
 
             if all([altitude_check, heading_check, ILSTriangle_check, plane.isInbound]):
                 # new heading to fixed point (runway head)
                 plane.goToFixed = (x, y)
                 plane.goToFixedName = (
-                    f'Runway {ATC.airspaceInfo["runways"][0]["from"]["tag"]["text"]}'
+                    f'Runway {ATC.airspaceInfo["runways"][0]["headL"]["tag"]["text"]}'
                 )
                 # new speed set to landing speed
                 plane.speedTo = plane.speedLanding
@@ -608,12 +619,6 @@ def process_command():
             #   must be in triangle
             #   must be heading +/- 10 degrees from runway line
             #   must be below approach altitude
-            # execute:
-            #   once plane hits head adjust heading to runway heading
-            #   check for altitude = runway altitude --> go around
-            #   begin decel until 0
-            #   remove plane from list and add 1 to score
-            pass  # land
         elif cmd[0] == "T":
             # full takeoff
             if not plane.onRadar or (plane.onRadar and plane.speed == 0):
