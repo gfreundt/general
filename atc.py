@@ -30,6 +30,7 @@ class Environment:
     MAX_AIRPLANES = 9
     MESSAGE_DISPLAY_TIME = 20  # seconds
     ILS_ANGLE = 20  # degrees
+    ILS_HEADING = 30  # degrees
     ERRORS = ["*VOID*", "Last Command Not Understood", "Unable to Comply"]
     audioOn = False
     score = 0
@@ -587,7 +588,7 @@ def process_command():
             delta_heading = (
                 360 - delta_heading if delta_heading > 180 else delta_heading
             )
-            heading_check = delta_heading <= 15
+            heading_check = delta_heading <= ENV.ILS_HEADING
             # landing condition: must be inside ILS triangle (within angle of center line)
             delta_heading = abs(
                 ATC.calc_heading(plane.x, plane.y, x, y)
@@ -596,7 +597,6 @@ def process_command():
             delta_heading = (
                 360 - delta_heading if delta_heading > 180 else delta_heading
             )
-            print(delta_heading)
             ILSTriangle_check = delta_heading <= ENV.ILS_ANGLE
 
             if all([altitude_check, heading_check, ILSTriangle_check, plane.isInbound]):
