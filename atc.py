@@ -217,7 +217,7 @@ class Airspace:
                 ATC.airspaceInfo["runways"][0]["from"]["x"],
                 ATC.airspaceInfo["runways"][0]["from"]["y"],
             ) + random.randint(-30, 30)
-            altitude = random.randint(30000, 80000)
+            altitude = random.randint(50000, 8000)
             speed = random.randint(200, 500)
             isGround = False
             finalDestination = ""
@@ -570,19 +570,27 @@ def process_command():
             else:
                 error = 2
         elif cmd[0] == "L":
-            # runway_selected = [i for i in ATC.airspaceInfo["runways"]]  int(cmd[1])
-            # altitude_check = plane.altitude <= plane.altitudeApproach
-            # delta_heading = plane.heading - ATC.calc_heading()
-            altitude_check = 1
-            heading_check = 1
-            ILS_check = 1
+            # ladning condition: must be at or below approach altitude
+            altitude_check = plane.altitude <= plane.altitudeApproach
+            x, y = (
+                ATC.airspaceInfo["runways"][0]["from"]["x"],
+                ATC.airspaceInfo["runways"][0]["from"]["y"],
+            )
+            # landing condition: must be heading within +/- 15 degress from runqay headinng
+            delta_heading = abs(
+                plane.heading - ATC.calc_heading(plane.x, plane.y, x, y)
+            )
+            delta_heading = (
+                360 - delta_heading if delta_heading > 180 else delta_heading
+            )
+            heading_check = delta_heading <= 15
+            print(f"{delta_heading=}  {ATC.calc_heading(plane.x, plane.y, x, y)=}")
+            # landing condition: must be inside ILS traingle
+            ILSTriangle_check = 1
 
-            if all([altitude_check, heading_check, ILS_check, plane.isInbound]):
+            if all([altitude_check, heading_check, ILSTriangle_check, plane.isInbound]):
                 # new heading to fixed point (runway head)
-                plane.goToFixed = (
-                    ATC.airspaceInfo["runways"][0]["from"]["x"],
-                    ATC.airspaceInfo["runways"][0]["from"]["y"],
-                )
+                plane.goToFixed = (x, y)
                 plane.goToFixedName = (
                     f'Runway {ATC.airspaceInfo["runways"][0]["from"]["tag"]["text"]}'
                 )
@@ -592,6 +600,8 @@ def process_command():
 
                 # new altitude is runway head altitude
                 plane.altitudeTo = ATC.airspaceInfo["altitudes"]["groundLevel"]
+            else:
+                error = 2
 
             # define landing triangle for each runway head
             # conditions:
