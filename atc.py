@@ -310,7 +310,7 @@ class Airspace:
                     (
                         plane.speed + plane.accelGround
                         if plane.isGround
-                        else plane.accelAir
+                        else plane.speed + plane.accelAir
                     ),
                     plane.speedTo,
                 )
@@ -354,6 +354,7 @@ class Airspace:
             # check for end of takeoff conditions
             if plane.isTakeoff and plane.speed >= plane.speedTakeoff:
                 plane.isTakeoff = False
+                plane.isGround = False
 
             # recalculate descent rate if plane is landing
             if plane.isLanding and not plane.isGround:
@@ -375,6 +376,7 @@ class Airspace:
                     x - 2 <= int(plane.x) <= x + 2
                     and y - 2 <= int(plane.y) <= y + 2
                     and plane.altitude == plane.altitudeTo
+                    and plane.isLanding
                 ):
                     x, y = (
                         ATC.airspaceInfo["runways"][0]["headR"]["x"],
@@ -682,7 +684,7 @@ def process_command():
 
 
 def update_pygame_display():
-    # reload all level-2 background surfaces
+    # load all level-2 background surfaces
     for surfaces in ATC.allLevel2Surfaces:
         surfaces[0].blit(source=surfaces[1], dest=(0, 0))
     # load Radar main surface + Inventory main surface
@@ -712,13 +714,16 @@ def update_pygame_display():
     )
     # load Weather main surface
     text = ENV.FONT14.render(
-        f"GMT: {dt.strftime(dt.now(),'%H:%M:%S')}", True, ENV.BLACK, ENV.BG
+        f"GMT: {dt.strftime(dt.now(),'%H:%M:%S')}", True, ENV.WHITE, ENV.BLACK
     )
     ATC.weatherSurface.blit(
         source=text,
         dest=(10, 25),
     )
-    # reload all level-2 main surfaces
+    # load Console main surface
+    text = ENV.FONT14.render(f"Score: {ENV.score}", True, ENV.WHITE, ENV.BLACK)
+    ATC.consoleSurface.blit(source=text, dest=(10, 10))
+    # load all level-2 main surfaces
     for surfaces in ATC.allLevel2Surfaces:
         ATC.displaySurface.blit(source=surfaces[0], dest=surfaces[2])
 
