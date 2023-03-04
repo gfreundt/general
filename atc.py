@@ -11,6 +11,11 @@ from gtts import gTTS
 pygame.init()
 
 
+# TODO: go around
+# TODO: click on radar airplane to select
+# TODO: select any runway to land
+
+
 class Environment:
 
     WHITE = (255, 255, 255)
@@ -576,51 +581,7 @@ def process_command():
                 text = "Proceed to runway and await clearance."
             else:
                 error = 2
-        elif cmd[0] == "L":  # TODO: go around
-            # landing condition: must be at or below approach altitude
-            altitude_check = plane.altitude <= plane.altitudeApproach
-            x, y = (
-                ATC.airspaceInfo["runways"][0]["headL"]["x"],
-                ATC.airspaceInfo["runways"][0]["headL"]["y"],
-            )
-            # landing condition: must be heading within +/- 15 degress from runqay headinng
-            delta_heading = abs(
-                plane.heading - ATC.airspaceInfo["runways"][0]["headingLtoR"]
-            )
-            delta_heading = (
-                360 - delta_heading if delta_heading > 180 else delta_heading
-            )
-            heading_check = delta_heading <= ENV.ILS_HEADING
-            # landing condition: must be inside ILS triangle (within angle of center line)
-            delta_heading = abs(
-                ATC.calc_heading(plane.x, plane.y, x, y)
-                - ATC.airspaceInfo["runways"][0]["headingLtoR"]
-            )
-            delta_heading = (
-                360 - delta_heading if delta_heading > 180 else delta_heading
-            )
-            ILSTriangle_check = delta_heading <= ENV.ILS_ANGLE
 
-            if all([altitude_check, heading_check, ILSTriangle_check, plane.isInbound]):
-                # new heading to fixed point (runway head)
-                plane.goToFixed = (x, y)
-                plane.goToFixedName = (
-                    f'Runway {ATC.airspaceInfo["runways"][0]["headL"]["tag"]["text"]}'
-                )
-                # new speed set to landing speed
-                plane.speedTo = plane.speedLanding
-                plane.isLanding = True
-
-                # new altitude is runway head altitude
-                plane.altitudeTo = ATC.airspaceInfo["altitudes"]["groundLevel"]
-            else:
-                error = 2
-
-            # define landing triangle for each runway head
-            # conditions:
-            #   must be in triangle
-            #   must be heading +/- 10 degrees from runway line
-            #   must be below approach altitude
         elif cmd[0] == "T":
             # full takeoff
             if not plane.onRadar or (plane.onRadar and plane.speed == 0):
@@ -667,6 +628,55 @@ def process_command():
                 text = f"New speed {int(cmd[1])}"
             else:
                 error = 2
+
+        elif cmd[0] == "L":
+            runways = []
+            for i in ("headL", "headR"):
+                for s in ATC.airspaceInfo["runways"]:
+                    runways.append(s[i]["tag"])
+
+            selected_runway = [
+                (i["xy"], i["heading"]) for i in runways if i["text"] == cmd[1]
+            ]
+
+            print("xxxxxxxx", selected_runway)
+
+            if selected_runway:
+                # landing condition: must be at or below approach altitude
+                altitude_check = plane.altitude <= plane.altitudeApproach
+                x, y = (selected_runway[0][0][0], selected_runway[0][0][1])
+                # landing condition: must be heading within certain degress from runqay headinng
+                delta_heading = abs(plane.heading - selected_runway[0][1])
+                delta_heading = (
+                    360 - delta_heading if delta_heading > 180 else delta_heading
+                )
+                heading_check = delta_heading <= ENV.ILS_HEADING
+                # landing condition: must be inside ILS triangle (within angle of center line)
+                delta_heading = abs(
+                    ATC.calc_heading(plane.x, plane.y, x, y) - selected_runway[0][1]
+                )
+                delta_heading = (
+                    360 - delta_heading if delta_heading > 180 else delta_heading
+                )
+                ILSTriangle_check = delta_heading <= ENV.ILS_ANGLE
+
+                if all(
+                    [altitude_check, heading_check, ILSTriangle_check, plane.isInbound]
+                ):
+                    # new heading to fixed point (runway head)
+                    plane.goToFixed = (x, y)
+                    plane.goToFixedName = f"Runway {cmd[1]}"
+                    # new speed set to landing speed
+                    plane.speedTo = plane.speedLanding
+                    plane.isLanding = True
+                    # new altitude is runway head altitude
+                    plane.altitudeTo = ATC.airspaceInfo["altitudes"]["groundLevel"]
+                else:
+                    error = 2
+            else:
+                error = 1
+        else:
+            error = 1
     else:
         error = 1
 
