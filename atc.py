@@ -13,7 +13,6 @@ pygame.init()
 
 # TODO: go around
 # TODO: click on radar airplane to select
-# TODO: select any runway to land
 
 
 class Environment:
@@ -47,7 +46,6 @@ class Airspace:
         with open("atc-airplanes.json", mode="r") as json_file:
             self.airplaneData = json.loads(json_file.read())
         self.activeAirplanes = []
-
         self.init_pygame()
         self.init_load_airspace()
         self.init_load_console()
@@ -218,15 +216,12 @@ class Airspace:
                     15.0 if random.randint(0, 1) < 0.5 else self.RADAR_WIDTH - 15,
                     _v,
                 )
-            heading = (
-                ATC.calc_heading(
-                    x,
-                    y,
-                    ATC.airspaceInfo["runways"][0]["headL"]["x"],
-                    ATC.airspaceInfo["runways"][0]["headL"]["y"],
-                )
-                + random.randint(-30, 30)
-            )
+            heading = ATC.calc_heading(
+                x,
+                y,
+                ATC.airspaceInfo["runways"][0]["headL"]["x"],
+                ATC.airspaceInfo["runways"][0]["headL"]["y"],
+            ) + random.randint(-30, 30)
             altitude = random.randint(5000, 8000)
             speed = random.randint(200, 500)
             isGround = False
@@ -297,13 +292,16 @@ class Airspace:
         os.system("start temp.wav")
 
     def next_frame(self):
+
         # process messages
         if ATC.messageText and dt.now() - ATC.messageText[0][1] > td(
             seconds=ENV.MESSAGE_DISPLAY_TIME
         ):
             ATC.messageText.pop(0)
+
         # process planes
         for seq, plane in enumerate(self.activeAirplanes):
+            self.check_collision()
             # sequential number
             plane.sequence = seq
             # calculate new x,y coordinates
@@ -469,7 +467,10 @@ class Airspace:
                     plane.onRadar = False
                     ATC.activeAirplanes.remove(plane)
                     ENV.score += 1
+    def check_collisions(self):
+        # warnings
 
+        # full collision - end of game
 
 class Airplane(pygame.sprite.Sprite):
     def __init__(self, **kw):
@@ -638,8 +639,6 @@ def process_command():
             selected_runway = [
                 (i["xy"], i["heading"]) for i in runways if i["text"] == cmd[1]
             ]
-
-            print("xxxxxxxx", selected_runway)
 
             if selected_runway:
                 # landing condition: must be at or below approach altitude
