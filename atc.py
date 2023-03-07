@@ -229,15 +229,12 @@ class Airspace:
                     15.0 if random.randint(0, 1) < 0.5 else self.RADAR_WIDTH - 15,
                     _v,
                 )
-            heading = (
-                ATC.calc_heading(
-                    x,
-                    y,
-                    ATC.airspaceInfo["runways"][0]["headL"]["x"],
-                    ATC.airspaceInfo["runways"][0]["headL"]["y"],
-                )
-                + random.randint(-30, 30)
-            )
+            heading = ATC.calc_heading(
+                x,
+                y,
+                ATC.airspaceInfo["runways"][0]["headL"]["x"],
+                ATC.airspaceInfo["runways"][0]["headL"]["y"],
+            ) + random.randint(-30, 30)
             altitude = random.randint(5000, 8000)
             speed = random.randint(200, 500)
             isGround = False
@@ -342,7 +339,7 @@ class Airspace:
                     (
                         plane.speed + plane.decelGround
                         if plane.isGround
-                        else plane.decelAir
+                        else plane.speed + plane.decelAir
                     ),
                     plane.speedTo,
                 )
@@ -366,14 +363,19 @@ class Airspace:
                 # heading change
                 clockwise = (plane.headingTo - plane.heading + 360) % 360
                 anticlockwise = (plane.heading - plane.headingTo + 360) % 360
-                if clockwise < anticlockwise:  # clockwise turn
+                if (
+                    not plane.turnDirection and clockwise < anticlockwise
+                ) or plane.turnDirection == "R":  # clockwise turn
                     plane.heading = (plane.heading + plane.turnRate + 360) % 360
                     left_right = ">"
-                elif anticlockwise < clockwise:  # anticlockwise turn
+                elif (
+                    not plane.turnDirection and anticlockwise < clockwise
+                ) or plane.turnDirection == "L":  # anticlockwise turn
                     plane.heading = (plane.heading - plane.turnRate + 360) % 360
                     left_right = "<"
                 if min(clockwise, anticlockwise) <= plane.turnRate:
                     plane.heading = plane.headingTo
+                    plane.turnDirection = None
             # check for end of takeoff conditions
             if plane.isTakeoff and plane.speed >= plane.speedTakeoff:
                 plane.isTakeoff = False
@@ -492,11 +494,11 @@ class Airspace:
 
     def check_collision(self, plane):
         for other_plane in ATC.activeAirplanes:
-            if not plane == other_plane and not plane.isGround:
+            if not plane == other_plane and not plane.isGround and not plane.isLanding:
                 dist = math.sqrt(
                     (plane.x - other_plane.x) ** 2 + (plane.y - other_plane.y) ** 2
                 )
-                # TODO: full collision - end of game
+                # full collision detection
                 if (
                     abs(plane.altitude - other_plane.altitude)
                     < ENV.MIN_V_SEPARATION * 0.2
@@ -504,15 +506,12 @@ class Airspace:
                 ):
                     ENV.collision = True
                     return
-                # warning
+                # warning detection
                 if (
                     abs(plane.altitude - other_plane.altitude) < ENV.MIN_V_SEPARATION
                     and dist < ENV.MIN_H_SEPARATION
                 ):
                     plane.tagColor = ENV.RED
-                    print(
-                        f"Warning! {plane.callSign}  {dist=}",
-                    )
                     return
                 else:
                     plane.tagColor = ENV.WHITE
@@ -552,6 +551,7 @@ class Airplane(pygame.sprite.Sprite):
         self.speedTo = self.speed
         self.altitudeTo = self.altitude
         self.headingTo = self.heading
+        self.turnDirection = None
         self.goToFixed = False
         self.finalDestination = kw["finalDestination"]
         # airplane status
@@ -624,7 +624,7 @@ def process_command():
         ATC.commandText = ""
         error = 3
 
-    text = "NOTHING"
+    # text = "NOTHING"
 
     # check if format is right (2 or 3 blocks of commands)
     if len(cmd) == 1 and not error:
@@ -648,9 +648,14 @@ def process_command():
                 text = "Cleared for Takeoff"
             else:
                 error = 2
+
+        elif cmd[0] == "X":  # only for testing
+            plane.headingTo = 90
+            plane.turnDirection = "L"
+
         else:
             error = 1
-    elif len(cmd) == 2 and not error:
+    elif len(cmd) > 1 and not plane.isLanding and not error:
         if cmd[0] == "C":  # change heading to fixed number or VOR
             if cmd[1].isdigit():  # chose fixed heading
                 plane.headingTo = int(cmd[1])
@@ -676,7 +681,7 @@ def process_command():
             else:
                 error = 2
         elif cmd[0] == "S":  # change speed
-            if plane.speedMin < new < plane.speedMax:
+            if plane.speedMin <= int(cmd[1]) <= plane.speedMax:
                 plane.speedTo = int(cmd[1])
                 text = f"New speed {int(cmd[1])}"
             else:
@@ -716,12 +721,13 @@ def process_command():
                 ):
                     # new heading to fixed point (runway head)
                     plane.goToFixed = (x, y)
-                    plane.goToFixedName = f"Runway {cmd[1]}"
+                    plane.goToFixedName = f"Runway {cmd[1]} "
                     # new speed set to landing speed
                     plane.speedTo = plane.speedLanding
                     plane.isLanding = True
                     # new altitude is runway head altitude
                     plane.altitudeTo = ATC.airspaceInfo["altitudes"]["groundLevel"]
+                    text = f"Cleared to Land Runway {cmd[1]}"
                 else:
                     error = 2
             else:
