@@ -13,6 +13,11 @@ pygame.init()
 
 # TODO: go around
 # TODO: click on radar airplane to select
+# TODO: expedite
+# TODO: multi-command line
+# TODO: wind direction
+# TODO: left / right turn
+# TODO: reduce score if warning
 
 
 class Environment:
@@ -35,7 +40,15 @@ class Environment:
     MESSAGE_DISPLAY_TIME = 20  # seconds
     ILS_ANGLE = 20  # degrees
     ILS_HEADING = 30  # degrees
-    ERRORS = ["*VOID*", "Last Command Not Understood", "Unable to Comply"]
+    MIN_V_SEPARATION = 1000
+    MIN_H_SEPARATION = 60
+    ERRORS = [
+        "*VOID*",
+        "Last Command not Understood",
+        "Unable to Comply",
+        "Flight Number not Available",
+    ]
+    collision = False
     audioOn = False
     score = 0
 
@@ -216,12 +229,15 @@ class Airspace:
                     15.0 if random.randint(0, 1) < 0.5 else self.RADAR_WIDTH - 15,
                     _v,
                 )
-            heading = ATC.calc_heading(
-                x,
-                y,
-                ATC.airspaceInfo["runways"][0]["headL"]["x"],
-                ATC.airspaceInfo["runways"][0]["headL"]["y"],
-            ) + random.randint(-30, 30)
+            heading = (
+                ATC.calc_heading(
+                    x,
+                    y,
+                    ATC.airspaceInfo["runways"][0]["headL"]["x"],
+                    ATC.airspaceInfo["runways"][0]["headL"]["y"],
+                )
+                + random.randint(-30, 30)
+            )
             altitude = random.randint(5000, 8000)
             speed = random.randint(200, 500)
             isGround = False
@@ -235,7 +251,7 @@ class Airspace:
             x, y = (heads[0]["x"], heads[0]["y"])
             heading = self.calc_heading(x, y, heads[1]["x"], heads[1]["y"])
             # altitude
-            altitude = 680  # replace with runway altitude
+            altitude = ATC.airspaceInfo["altitudes"]["groundLevel"]
             # speed
             speed = 0
             # status
@@ -292,6 +308,10 @@ class Airspace:
         os.system("start temp.wav")
 
     def next_frame(self):
+        # check end-game collision
+        if ENV.collision:
+            print("Collision!!")
+            quit()
 
         # process messages
         if ATC.messageText and dt.now() - ATC.messageText[0][1] > td(
@@ -301,7 +321,7 @@ class Airspace:
 
         # process planes
         for seq, plane in enumerate(self.activeAirplanes):
-            self.check_collision()
+            self.check_collision(plane)
             # sequential number
             plane.sequence = seq
             # calculate new x,y coordinates
@@ -405,11 +425,13 @@ class Airspace:
                 if plane.altitude > plane.altitudeTo
                 else "="
             )
-            plane.tagText0 = ENV.FONT12.render(plane.callSign, True, ENV.WHITE, ENV.BG)
+            plane.tagText0 = ENV.FONT12.render(
+                plane.callSign, True, plane.tagColor, ENV.BG
+            )
             plane.tagText1 = ENV.FONT12.render(
                 f"{(plane.altitude // 1000):03}{up_down}{plane.speed//10}",
                 True,
-                ENV.WHITE,
+                plane.tagColor,
                 ENV.BG,
             )
             plane.tagPosition0 = (plane.x + 20, plane.y + 20)
@@ -467,10 +489,34 @@ class Airspace:
                     plane.onRadar = False
                     ATC.activeAirplanes.remove(plane)
                     ENV.score += 1
-    def check_collisions(self):
-        # warnings
 
-        # full collision - end of game
+    def check_collision(self, plane):
+        for other_plane in ATC.activeAirplanes:
+            if not plane == other_plane and not plane.isGround:
+                dist = math.sqrt(
+                    (plane.x - other_plane.x) ** 2 + (plane.y - other_plane.y) ** 2
+                )
+                # TODO: full collision - end of game
+                if (
+                    abs(plane.altitude - other_plane.altitude)
+                    < ENV.MIN_V_SEPARATION * 0.2
+                    and dist < ENV.MIN_H_SEPARATION * 0.2
+                ):
+                    ENV.collision = True
+                    return
+                # warning
+                if (
+                    abs(plane.altitude - other_plane.altitude) < ENV.MIN_V_SEPARATION
+                    and dist < ENV.MIN_H_SEPARATION
+                ):
+                    plane.tagColor = ENV.RED
+                    print(
+                        f"Warning! {plane.callSign}  {dist=}",
+                    )
+                    return
+                else:
+                    plane.tagColor = ENV.WHITE
+
 
 class Airplane(pygame.sprite.Sprite):
     def __init__(self, **kw):
@@ -523,6 +569,7 @@ class Airplane(pygame.sprite.Sprite):
         self.tailPosition0 = (0, 0)
         self.tailPosition1 = (0, 0)
         # create pygame entities (dummy data)
+        self.tagColor = ENV.WHITE
         self.tagText0 = self.tagText1 = self.inventoryText = ENV.FONT12.render(
             " ",
             True,
@@ -560,9 +607,14 @@ def process_keydown(key):
 
 
 def process_command():
+    error = False
+    # if empty command or no planes active
     if not ATC.commandText or not ATC.activeAirplanes:
         return
-    # parse command
+    # clean extra spaces
+    while "  " in ATC.commandText:
+        ATC.commandText = ATC.commandText.replace("  ", " ")
+    # extract flight number
     flt, *cmd = ATC.commandText.split(" ")
     # check if flight number exists
     plane = [i for i in ATC.activeAirplanes if i.callSign == flt]
@@ -570,11 +622,12 @@ def process_command():
         plane = plane[0]
     else:
         ATC.commandText = ""
-        return
+        error = 3
+
     text = "NOTHING"
-    error = False
+
     # check if format is right (2 or 3 blocks of commands)
-    if len(cmd) == 1:
+    if len(cmd) == 1 and not error:
         if cmd[0] == "H":
             # go to runway head
             if not plane.onRadar:
@@ -597,7 +650,7 @@ def process_command():
                 error = 2
         else:
             error = 1
-    elif len(cmd) == 2:
+    elif len(cmd) == 2 and not error:
         if cmd[0] == "C":  # change heading to fixed number or VOR
             if cmd[1].isdigit():  # chose fixed heading
                 plane.headingTo = int(cmd[1])
@@ -623,7 +676,6 @@ def process_command():
             else:
                 error = 2
         elif cmd[0] == "S":  # change speed
-            new = int(cmd[1])
             if plane.speedMin < new < plane.speedMax:
                 plane.speedTo = int(cmd[1])
                 text = f"New speed {int(cmd[1])}"

@@ -46,11 +46,11 @@
         "turnRate": 9,
         "acceleration": {
             "ground": 8,
-            "air": 12
+            "air": 9
         },
         "deceleration": {
             "ground": -3,
-            "air": -11
+            "air": -5
         }
     }
 }
