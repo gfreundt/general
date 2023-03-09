@@ -10,14 +10,19 @@ from gtts import gTTS
 
 pygame.init()
 
+# TODO: left / right turn
+# TODO: reduce score if warning
+# TODO: collision of takeoff plane with taxiing
 
 # TODO: go around
-# TODO: click on radar airplane to select
 # TODO: expedite
 # TODO: multi-command line
 # TODO: wind direction
-# TODO: left / right turn
-# TODO: reduce score if warning
+# TODO: length of tail function of speed
+# TODO: color for text when score +1 or -1
+
+# TODO: priority departure
+# TODO: emergency landing
 
 
 class Environment:
@@ -50,7 +55,14 @@ class Environment:
     ]
     collision = False
     audioOn = False
-    score = 0
+    score = {
+        "departures": 0,
+        "arrivals": 0,
+        "uncontrolledExits": 0,
+        "warningSeconds": 0,
+        "collisions": 0,
+        "total": 0,
+    }
 
 
 class Airspace:
@@ -229,16 +241,20 @@ class Airspace:
                     15.0 if random.randint(0, 1) < 0.5 else self.RADAR_WIDTH - 15,
                     _v,
                 )
-            heading = ATC.calc_heading(
-                x,
-                y,
-                ATC.airspaceInfo["runways"][0]["headL"]["x"],
-                ATC.airspaceInfo["runways"][0]["headL"]["y"],
-            ) + random.randint(-30, 30)
+            heading = (
+                ATC.calc_heading(
+                    x,
+                    y,
+                    ATC.airspaceInfo["runways"][0]["headL"]["x"],
+                    ATC.airspaceInfo["runways"][0]["headL"]["y"],
+                )
+                + random.randint(-30, 30)
+            )
             altitude = random.randint(5000, 8000)
             speed = random.randint(200, 500)
             isGround = False
-            finalDestination = ""
+            finalDestination = {"x": 0, "y": 0}
+            runwayDeparture = "00"
         else:
             # select random runway
             runway = random.choice(ATC.airspaceInfo["runways"])
@@ -247,6 +263,7 @@ class Airspace:
             random.shuffle(heads)
             x, y = (heads[0]["x"], heads[0]["y"])
             heading = self.calc_heading(x, y, heads[1]["x"], heads[1]["y"])
+            runwayDeparture = heads[0]["tag"]["text"]
             # altitude
             altitude = ATC.airspaceInfo["altitudes"]["groundLevel"]
             # speed
@@ -255,6 +272,7 @@ class Airspace:
             isGround = True
             # random destination
             finalDestination = random.choice(ATC.airspaceInfo["VOR"])
+            # time to wait till ordered to head and getting there
         # add airplane instance to active planes
         _p = Airplane(
             aircraft=selected,
@@ -270,18 +288,13 @@ class Airspace:
             isLanding=False,
             isInbound=inbound,
             isGround=isGround,
+            runwayDeparture=runwayDeparture,
             finalDestination=finalDestination,
         )
         self.activeAirplanes.append(_p)
         # announce new plane in message box
-        text = f"{callSign} {'Arriving' if inbound else 'Departing from Runway '+heads[0]['tag']['text']+' to '+finalDestination['name']}"
-        ATC.messageText.append(
-            (
-                f"| {dt.strftime(dt.now(), '%H:%M:%S')} | {text}",
-                dt.now(),
-            )
-        )
-        ATC.play_audio_message(text)
+        text = f"{callSign} {'Arriving' if inbound else f'Departing from Runway {runwayDeparture} to '+finalDestination['name']}"
+        self.new_message(text, text)
 
     def calc_heading(self, x0, y0, x1, y1):
         a = abs(math.degrees(math.atan((y1 - y0) / (x1 - x0))))
@@ -294,11 +307,19 @@ class Airspace:
         else:
             return int(90 - a)
 
-    def play_audio_message(self, message):
+    def new_message(self, text, audio):
+        # written message
+        self.messageText.append(
+            (
+                f"| {dt.strftime(dt.now(), '%H:%M:%S')} | {text}",
+                dt.now(),
+            )
+        )
+        # audio message
         if ENV.audioOn == False:
             return
         gTTS(
-            text=message,
+            text=audio,
             lang="en",
             slow=False,
         ).save("temp.wav")
@@ -325,7 +346,7 @@ class Airspace:
             plane.x += (plane.speed / ENV.SCALE) * math.sin(math.radians(plane.heading))
             plane.y -= (plane.speed / ENV.SCALE) * math.cos(math.radians(plane.heading))
             # speed change
-            if plane.speed < plane.speedTo:
+            if (plane.speed < plane.speedTo) and plane.onRadar:
                 plane.speed = min(
                     (
                         plane.speed + plane.accelGround
@@ -334,7 +355,7 @@ class Airspace:
                     ),
                     plane.speedTo,
                 )
-            elif plane.speed > plane.speedTo:
+            elif (plane.speed > plane.speedTo) and plane.onRadar:
                 plane.speed = max(
                     (
                         plane.speed + plane.decelGround
@@ -376,6 +397,13 @@ class Airspace:
                 if min(clockwise, anticlockwise) <= plane.turnRate:
                     plane.heading = plane.headingTo
                     plane.turnDirection = None
+
+            # check for ordered to head/takeoff and taxi time to get there
+            if plane.taxiTime > 0:
+                plane.taxiTime -= 1
+                if plane.taxiTime == 0:
+                    plane.onRadar = True
+
             # check for end of takeoff conditions
             if plane.isTakeoff and plane.speed >= plane.speedTakeoff:
                 plane.isTakeoff = False
@@ -403,11 +431,7 @@ class Airspace:
                     and plane.altitude == plane.altitudeTo
                     and plane.isLanding
                 ):
-                    x, y = (
-                        ATC.airspaceInfo["runways"][0]["headR"]["x"],
-                        ATC.airspaceInfo["runways"][0]["headR"]["y"],
-                    )
-                    plane.heading = ATC.calc_heading(plane.x, plane.y, x, y)
+                    plane.heading = plane.runwayHeading
                     plane.speedTo = 0
                     plane.isGround = True
 
@@ -438,6 +462,9 @@ class Airspace:
             )
             plane.tagPosition0 = (plane.x + 20, plane.y + 20)
             plane.tagPosition1 = (plane.x + 20, plane.y + 33)
+            plane.tagClickArea = pygame.Rect(
+                plane.tagPosition0[0], plane.tagPosition0[1], 42, 26
+            )
             # update inventory item
             plane.inventoryText = pygame.Surface((ATC.CONTROLS_WIDTH - 15, 40))
             color = ENV.INV_COLORS[0 if plane.isInbound else 1]
@@ -460,7 +487,7 @@ class Airspace:
             )
             plane.inventoryText.blit(
                 ENV.FONT12.render(
-                    f"{plane.aircraft}  {'Arrival' if plane.isInbound else f'Departure --> '+plane.finalDestination['name']}",
+                    f"{plane.aircraft}  {'Arrival' if plane.isInbound else f'Departure from {plane.runwayDeparture}  --> ' + plane.finalDestination['name']}",
                     True,
                     ENV.WHITE,
                     color,
@@ -475,22 +502,42 @@ class Airspace:
                 40,
             )
             plane.inventoryColor = ENV.INV_COLORS[0 if plane.isInbound else 1]
-            # check if plane has finised trip
+
+            x, y = plane.finalDestination["x"], plane.finalDestination["y"]
+            # check for safe landing
             if plane.isInbound:
                 if plane.isGround and plane.speed == 0:
-                    plane.onRadar = False
                     ATC.activeAirplanes.remove(plane)
-                    ENV.score += 1
-            else:
-                x, y = plane.finalDestination["x"], plane.finalDestination["y"]
-                if (
-                    x - 10 <= int(plane.x) <= x + 10
-                    and y - 10 <= int(plane.y) <= y + 10
-                    and plane.altitude >= ATC.airspaceInfo["altitudes"]["handOff"]
-                ):
-                    plane.onRadar = False
-                    ATC.activeAirplanes.remove(plane)
-                    ENV.score += 1
+                    ENV.score["arrivals"] += 1
+                    self.new_message(
+                        f"{plane.callSign} contact ground control at 132.5. Welcome. [+1 POINTS]",
+                        "",
+                    )
+            # check for safe VOR arrival
+            elif (
+                x - 10 <= int(plane.x) <= x + 10
+                and y - 10 <= int(plane.y) <= y + 10
+                and plane.altitude >= ATC.airspaceInfo["altitudes"]["handOff"]
+            ):
+                ATC.activeAirplanes.remove(plane)
+                ENV.score["departures"] += 1
+                self.new_message(
+                    f"{plane.callSign} contact air control at 183.4. Goodbye. [+1 POINTS]",
+                    "",
+                )
+            # check for unsafe airspace exit
+            if (
+                plane.x < 0
+                or plane.x > ATC.RADAR_WIDTH
+                or plane.y < 0
+                or plane.y > ATC.RADAR_HEIGHT
+            ):
+                ATC.activeAirplanes.remove(plane)
+                ENV.score["uncontrolledExits"] += 1
+                self.new_message(
+                    f"{plane.callSign} uncontrolled exit from airspace. [-1 POINTS]",
+                    "",
+                )
 
     def check_collision(self, plane):
         for other_plane in ATC.activeAirplanes:
@@ -505,6 +552,7 @@ class Airspace:
                     and dist < ENV.MIN_H_SEPARATION * 0.2
                 ):
                     ENV.collision = True
+                    ENV.score["collisions"] += 1
                     return
                 # warning detection
                 if (
@@ -512,6 +560,7 @@ class Airspace:
                     and dist < ENV.MIN_H_SEPARATION
                 ):
                     plane.tagColor = ENV.RED
+                    ENV.score["warningSeconds"] += 1
                     return
                 else:
                     plane.tagColor = ENV.WHITE
@@ -560,6 +609,8 @@ class Airplane(pygame.sprite.Sprite):
         self.isGround = kw["isGround"]
         self.onRadar = True if self.isInbound else False
         self.isTakeoff = False
+        self.runwayDeparture = kw["runwayDeparture"]
+        self.taxiTime = 0
         # create pygame entity - airplane box
         self.boxSurface = pygame.Surface((9, 9))
         pygame.draw.rect(self.boxSurface, ENV.WHITE, (0, 0, 8, 8), width=1)
@@ -580,13 +631,16 @@ class Airplane(pygame.sprite.Sprite):
             self.x + 20,
             self.y + 20,
         )
+        self.tagClickArea = pygame.Rect(0, 0, 0, 0)
         self.inventoryColor = (0, 0, 0)
         self.inventoryClickArea = pygame.Rect(0, 0, 0, 0)
 
 
 def process_click(pos):
     for plane in ATC.activeAirplanes:
-        if plane.inventoryClickArea.collidepoint(pos):
+        if plane.inventoryClickArea.collidepoint(
+            pos
+        ) or plane.tagClickArea.collidepoint(pos):
             ATC.commandText = plane.callSign + " "
             return
 
@@ -631,21 +685,23 @@ def process_command():
         if cmd[0] == "H":
             # go to runway head
             if not plane.onRadar:
-                plane.onRadar = True
-                text = "Proceed to runway and await clearance."
+                plane.taxiTime = random.randint(8, 15)
+                # plane.onRadar = True
+                text = f"{plane.callSign} Proceed to runway and await clearance."
             else:
                 error = 2
 
         elif cmd[0] == "T":
             # full takeoff
             if not plane.onRadar or (plane.onRadar and plane.speed == 0):
-                plane.onRadar = True
+                plane.taxiTime = random.randint(8, 15)
+                # plane.onRadar = True
                 plane.speedTo = (
                     plane.speedCruise if not plane.speedTo else plane.speedTo
                 )
                 plane.isTakeoff = True
                 plane.altitudeTo = max(plane.altitudeTo, plane.altitudeMin)
-                text = "Cleared for Takeoff"
+                text = f"{plane.callSign} Cleared for Takeoff"
             else:
                 error = 2
 
@@ -670,20 +726,20 @@ def process_command():
                     ][0]
                     plane.goToFixed = (VORxy[0], VORxy[1])
                     plane.goToFixedName = cmd[1].strip()
-                    text = f"Head to {plane.goToFixedName}"
+                    text = f"{plane.callSign} Head to {plane.goToFixedName}"
                 else:
                     error = 2
         elif cmd[0] == "A":  # change altitude
             new = int(cmd[1])
             if plane.altitudeMin < new * 1000 < plane.altitudeMax:
                 plane.altitudeTo = new * 1000
-                text = f"New altitude {new*1000}"
+                text = f"{plane.callSign} New altitude {new*1000}"
             else:
                 error = 2
         elif cmd[0] == "S":  # change speed
             if plane.speedMin <= int(cmd[1]) <= plane.speedMax:
                 plane.speedTo = int(cmd[1])
-                text = f"New speed {int(cmd[1])}"
+                text = f"{plane.callSign} New speed {int(cmd[1])}"
             else:
                 error = 2
 
@@ -691,25 +747,28 @@ def process_command():
             runways = []
             for i in ("headL", "headR"):
                 for s in ATC.airspaceInfo["runways"]:
-                    runways.append(s[i]["tag"])
+                    runways.append(s[i])
 
             selected_runway = [
-                (i["xy"], i["heading"]) for i in runways if i["text"] == cmd[1]
+                ((i["x"], i["y"]), i["tag"]["heading"])
+                for i in runways
+                if i["tag"]["text"] == cmd[1]
             ]
 
             if selected_runway:
                 # landing condition: must be at or below approach altitude
                 altitude_check = plane.altitude <= plane.altitudeApproach
-                x, y = (selected_runway[0][0][0], selected_runway[0][0][1])
                 # landing condition: must be heading within certain degress from runqay headinng
-                delta_heading = abs(plane.heading - selected_runway[0][1])
+                plane.runwayHeading = selected_runway[0][1]
+                delta_heading = abs(plane.heading - plane.runwayHeading)
                 delta_heading = (
                     360 - delta_heading if delta_heading > 180 else delta_heading
                 )
                 heading_check = delta_heading <= ENV.ILS_HEADING
                 # landing condition: must be inside ILS triangle (within angle of center line)
+                x, y = (selected_runway[0][0][0], selected_runway[0][0][1])
                 delta_heading = abs(
-                    ATC.calc_heading(plane.x, plane.y, x, y) - selected_runway[0][1]
+                    ATC.calc_heading(plane.x, plane.y, x, y) - plane.runwayHeading
                 )
                 delta_heading = (
                     360 - delta_heading if delta_heading > 180 else delta_heading
@@ -727,7 +786,7 @@ def process_command():
                     plane.isLanding = True
                     # new altitude is runway head altitude
                     plane.altitudeTo = ATC.airspaceInfo["altitudes"]["groundLevel"]
-                    text = f"Cleared to Land Runway {cmd[1]}"
+                    text = f"{plane.callSign} Cleared to Land Runway {cmd[1]}"
                 else:
                     error = 2
             else:
@@ -740,13 +799,7 @@ def process_command():
     if error:
         ATC.commandText = ENV.ERRORS[error]
     else:
-        ATC.messageText.append(
-            (
-                f"| {dt.strftime(dt.now(), '%H:%M:%S')} | Tower to {flt}: {text}",
-                dt.now(),
-            )
-        )
-        ATC.play_audio_message(text)
+        ATC.new_message(text, text)
         ATC.commandText = ""
 
 
@@ -788,7 +841,14 @@ def update_pygame_display():
         dest=(10, 25),
     )
     # load Console main surface
-    text = ENV.FONT14.render(f"Score: {ENV.score}", True, ENV.WHITE, ENV.BLACK)
+    ENV.score["total"] = (
+        ENV.score["departures"]
+        + ENV.score["arrivals"]
+        - ENV.score["uncontrolledExits"]
+        - ENV.score["warningSeconds"] // 10
+        - ENV.score["collisions"] * 500
+    )
+    text = ENV.FONT14.render(f"Score: {ENV.score['total']}", True, ENV.WHITE, ENV.BLACK)
     ATC.consoleSurface.blit(source=text, dest=(10, 10))
     # load all level-2 main surfaces
     for surfaces in ATC.allLevel2Surfaces:
