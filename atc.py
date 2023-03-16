@@ -10,15 +10,13 @@ from gtts import gTTS
 
 pygame.init()
 
-# TODO: left / right turn
-# TODO: reduce score if warning
-# TODO: collision of takeoff plane with taxiing
-
 # TODO: go around
+# TODO: calibrate
+
+# TODO: fix wind direction
+
 # TODO: expedite
 # TODO: multi-command line
-# TODO: wind direction
-# TODO: length of tail function of speed
 # TODO: color for text when score +1 or -1
 
 # TODO: priority departure
@@ -30,10 +28,12 @@ class Environment:
     WHITE = (255, 255, 255)
     BLACK = (0, 0, 0)
     RED = (255, 0, 0)
+    GREEN = (0, 255, 0)
     BG = (25, 72, 80)
     BG_CONTROLS = (0, 102, 102)
     INV_COLORS = [(44, 93, 118), (74, 148, 186)]
 
+    FONT9 = pygame.font.Font("seguisym.ttf", 9)
     FONT12 = pygame.font.Font("seguisym.ttf", 12)
     FONT14 = pygame.font.Font("seguisym.ttf", 14)
     FONT20 = pygame.font.Font("roboto.ttf", 20)
@@ -58,11 +58,17 @@ class Environment:
     score = {
         "departures": 0,
         "arrivals": 0,
+        "expediteCommands": 0,
         "uncontrolledExits": 0,
         "warningSeconds": 0,
         "collisions": 0,
         "total": 0,
     }
+    simTimeBegin = dt.now()
+
+    # random wind speed and direction
+    windSpeed = random.randint(0, 30)
+    windDirection = random.randint(0, 360)
 
 
 class Airspace:
@@ -161,12 +167,21 @@ class Airspace:
         self.inventorySurface.fill(ENV.BLACK)
         self.inventoryBG = pygame.Surface.copy(self.inventorySurface)
 
-        # add Controls - Input background
+        # add Controls - Input Command background
         self.inputSurface = pygame.Surface(
             (self.CONTROLS_WIDTH, self.INVENTORY_HEIGHT - 2)
         )
         self.inputSurface.fill((ENV.WHITE))
         self.inputBG = pygame.Surface.copy(self.inputSurface)
+        render_text(
+            surface=self.inputBG,
+            font=ENV.FONT9,
+            text=["Enter New Command"],
+            fgColor=ENV.BLACK,
+            bgColor=ENV.WHITE,
+            x0=2,
+            y0=2,
+        )
         self.commandText = ""
 
         # add Controls - Console background
@@ -175,6 +190,15 @@ class Airspace:
         )
         self.consoleSurface.fill((ENV.BG_CONTROLS))
         self.consoleBG = pygame.Surface.copy(self.inventorySurface)
+        render_text(
+            surface=self.consoleBG,
+            font=ENV.FONT12,
+            text=["Score"],
+            fgColor=ENV.WHITE,
+            bgColor=ENV.BLACK,
+            x0=2,
+            y0=2,
+        )
 
         # add Controls - Weather background
         self.weatherSurface = pygame.Surface(
@@ -187,6 +211,32 @@ class Airspace:
             (self.WEATHER_HEIGHT, self.WEATHER_HEIGHT),
         )
         self.weatherBG.blit(source=img, dest=(self.CONTROLS_WIDTH // 2, 0))
+        print(ENV.windDirection)
+        if ENV.windDirection < 90:
+            dx, dy = (
+                math.cos(math.radians(90 - ENV.windDirection)) * 41,
+                math.sin(math.radians(90 - ENV.windDirection)) * -41,
+            )
+        elif ENV.windDirection < 180:
+            dx, dy = (
+                math.cos(math.radians(ENV.windDirection - 90)) * 41,
+                math.sin(math.radians(ENV.windDirection - 90)) * 41,
+            )
+        elif ENV.windDirection < 270:
+            dx, dy = (
+                math.cos(math.radians(270 - ENV.windDirection)) * -41,
+                math.sin(math.radians(270 - ENV.windDirection)) * 41,
+            )
+        else:
+            dx, dy = (
+                math.cos(math.radians(ENV.windDirection - 270)) * -41,
+                math.sin(math.radians(ENV.windDirection - 270)) * -41,
+            )
+        center = (
+            self.CONTROLS_WIDTH // 2 + self.WEATHER_HEIGHT // 2 + 1 + dx,
+            self.WEATHER_HEIGHT // 2 + 4 + dy,
+        )
+        pygame.draw.circle(self.weatherBG, ENV.GREEN, center, 4, 4)
 
         self.allLevel2Surfaces = [
             [self.radarSurface, self.radarBG, (0, 0)],
@@ -250,8 +300,8 @@ class Airspace:
                 )
                 + random.randint(-30, 30)
             )
-            altitude = random.randint(5000, 8000)
-            speed = random.randint(200, 500)
+            altitude = random.randint(5000, 20000)
+            speed = random.randint(180, 300)
             isGround = False
             finalDestination = {"x": 0, "y": 0}
             runwayDeparture = "00"
@@ -424,11 +474,12 @@ class Airspace:
                 )
 
                 # check if touchdown
-                x, y = plane.goToFixed[0], plane.goToFixed[1]
+                x, y = plane.goToFixed
                 if (
                     x - 2 <= int(plane.x) <= x + 2
                     and y - 2 <= int(plane.y) <= y + 2
                     and plane.altitude == plane.altitudeTo
+                    and plane.speed == plane.speedTo
                     and plane.isLanding
                 ):
                     plane.heading = plane.runwayHeading
@@ -440,9 +491,9 @@ class Airspace:
             plane.tailPosition0 = (plane.x, plane.y)
             plane.tailPosition1 = (
                 plane.x
-                + plane.tailLength * math.sin(math.radians(plane.heading + 180)),
+                + (plane.speed // 20 + 4) * math.sin(math.radians(plane.heading + 180)),
                 plane.y
-                - plane.tailLength * math.cos(math.radians(plane.heading + 180)),
+                - (plane.speed // 20 + 4) * math.cos(math.radians(plane.heading + 180)),
             )
             up_down = (
                 chr(8593)
@@ -503,8 +554,8 @@ class Airspace:
             )
             plane.inventoryColor = ENV.INV_COLORS[0 if plane.isInbound else 1]
 
-            x, y = plane.finalDestination["x"], plane.finalDestination["y"]
             # check for safe landing
+            x, y = plane.finalDestination["x"], plane.finalDestination["y"]
             if plane.isInbound:
                 if plane.isGround and plane.speed == 0:
                     ATC.activeAirplanes.remove(plane)
@@ -541,7 +592,12 @@ class Airspace:
 
     def check_collision(self, plane):
         for other_plane in ATC.activeAirplanes:
-            if not plane == other_plane and not plane.isGround and not plane.isLanding:
+            if (
+                not plane == other_plane
+                and not plane.isGround
+                and not plane.isLanding
+                and other_plane.onRadar
+            ):
                 dist = math.sqrt(
                     (plane.x - other_plane.x) ** 2 + (plane.y - other_plane.y) ** 2
                 )
@@ -616,7 +672,6 @@ class Airplane(pygame.sprite.Sprite):
         pygame.draw.rect(self.boxSurface, ENV.WHITE, (0, 0, 8, 8), width=1)
         self.boxPosition = (-10, -10)  # dummy data
         # create pygame entity - airplane tail
-        self.tailLength = 16
         self.tailPosition0 = (0, 0)
         self.tailPosition1 = (0, 0)
         # create pygame entities (dummy data)
@@ -716,6 +771,8 @@ def process_command():
             if cmd[1].isdigit():  # chose fixed heading
                 plane.headingTo = int(cmd[1])
                 plane.goToFixed = False
+                if len(cmd) > 2 and cmd[2] in ("R", "L"):
+                    plane.turnDirection = cmd[2]
                 text = f"New heading {int(cmd[1])}"
             else:  # chose VOR
                 if cmd[1] in [i["name"] for i in ATC.airspaceInfo["VOR"]]:
@@ -803,6 +860,12 @@ def process_command():
         ATC.commandText = ""
 
 
+def render_text(surface, font, text, fgColor, bgColor, x0, y0, dy=0):
+    for deltay, line in enumerate(text):
+        t = font.render(line, True, fgColor, bgColor)
+        surface.blit(source=t, dest=(x0, y0 + deltay * dy))
+
+
 def update_pygame_display():
     # load all level-2 background surfaces
     for surfaces in ATC.allLevel2Surfaces:
@@ -820,26 +883,43 @@ def update_pygame_display():
             source=entity.inventoryText, dest=entity.inventoryPosition
         )
     # load Message main surface
-    for y, text_line in enumerate(ATC.messageText):
-        text = ENV.FONT12.render(text_line[0], True, ENV.WHITE, ENV.BLACK)
-        ATC.messageSurface.blit(
-            source=text,
-            dest=(5, y * 15 + 4),
-        )
+    render_text(
+        surface=ATC.messageSurface,
+        font=ENV.FONT12,
+        text=[i[0] for i in ATC.messageText],
+        fgColor=ENV.WHITE,
+        bgColor=ENV.BLACK,
+        x0=5,
+        y0=4,
+        dy=15,
+    )
     # load Input Command main surface
-    text = ENV.FONT20.render(ATC.commandText, True, ENV.BLACK, ENV.WHITE)
-    ATC.inputSurface.blit(
-        source=text,
-        dest=(5, 5),
+    render_text(
+        surface=ATC.inputSurface,
+        font=ENV.FONT20,
+        text=[ATC.commandText],
+        fgColor=ENV.BLACK,
+        bgColor=ENV.WHITE,
+        x0=5,
+        y0=20,
     )
     # load Weather main surface
-    text = ENV.FONT14.render(
-        f"GMT: {dt.strftime(dt.now(),'%H:%M:%S')}", True, ENV.WHITE, ENV.BLACK
+    text = [
+        f"GMT: {dt.strftime(dt.now(),'%H:%M:%S')}",
+        f"Wind: {ENV.windSpeed} knots @ {ENV.windDirection:03}°.",
+        f"Simulation Time: {str(dt.now()-ENV.simTimeBegin)[:-5]}.",
+    ]
+    render_text(
+        surface=ATC.weatherSurface,
+        font=ENV.FONT14,
+        text=text,
+        fgColor=ENV.WHITE,
+        bgColor=ENV.BLACK,
+        x0=10,
+        y0=25,
+        dy=30,
     )
-    ATC.weatherSurface.blit(
-        source=text,
-        dest=(10, 25),
-    )
+
     # load Console main surface
     ENV.score["total"] = (
         ENV.score["departures"]
@@ -848,8 +928,19 @@ def update_pygame_display():
         - ENV.score["warningSeconds"] // 10
         - ENV.score["collisions"] * 500
     )
-    text = ENV.FONT14.render(f"Score: {ENV.score['total']}", True, ENV.WHITE, ENV.BLACK)
-    ATC.consoleSurface.blit(source=text, dest=(10, 10))
+    text = [
+        f"{j.title()}: {str(i)}" for i, j in zip(ENV.score.values(), ENV.score.keys())
+    ]
+    render_text(
+        surface=ATC.consoleSurface,
+        font=ENV.FONT12,
+        text=text,
+        fgColor=ENV.WHITE,
+        bgColor=ENV.BLACK,
+        x0=10,
+        y0=25,
+        dy=20,
+    )
     # load all level-2 main surfaces
     for surfaces in ATC.allLevel2Surfaces:
         ATC.displaySurface.blit(source=surfaces[0], dest=surfaces[2])
