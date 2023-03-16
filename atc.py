@@ -10,15 +10,18 @@ from gtts import gTTS
 
 pygame.init()
 
-# TODO: go around
-# TODO: calibrate
 
-# TODO: fix wind direction
+# TODO: calibrate
+# TODO: fix about face
+# TODO: warning decimals in score
+# TODO: when landing, intercept heading first
+# TODO: pause
 
 # TODO: expedite
-# TODO: multi-command line
+
 # TODO: color for text when score +1 or -1
 
+# TODO: multi-command line
 # TODO: priority departure
 # TODO: emergency landing
 
@@ -60,8 +63,8 @@ class Environment:
         "arrivals": 0,
         "expediteCommands": 0,
         "uncontrolledExits": 0,
-        "warningSeconds": 0,
-        "collisions": 0,
+        "warnings": 0,
+        "goArounds": 0,
         "total": 0,
     }
     simTimeBegin = dt.now()
@@ -77,6 +80,7 @@ class Airspace:
         with open("atc-airplanes.json", mode="r") as json_file:
             self.airplaneData = json.loads(json_file.read())
         self.activeAirplanes = []
+        self.lastCallSign = ""
         self.init_pygame()
         self.init_load_airspace()
         self.init_load_console()
@@ -84,8 +88,13 @@ class Airspace:
     def init_pygame(self):
         # pygame init
         # os.environ["SDL_VIDEO_WINDOW_POS"] = "7, 28"
+        self.displaySurface = pygame.display.set_mode(
+            pygame.display.list_modes()[0]
+        )  # , pygame.FULLSCREEN)
         self.DISPLAY_WIDTH = pygame.display.Info().current_w
         self.DISPLAY_HEIGHT = pygame.display.Info().current_h // 1.07
+        print(self.DISPLAY_WIDTH, self.DISPLAY_HEIGHT)
+        print(pygame.display.list_modes())
         self.RADAR_WIDTH = int(self.DISPLAY_WIDTH * 0.75)
         self.RADAR_HEIGHT = self.DISPLAY_HEIGHT
         self.CONTROLS_WIDTH = int(self.DISPLAY_WIDTH * 0.25)
@@ -95,7 +104,6 @@ class Airspace:
         self.CONSOLE_HEIGHT = int(self.DISPLAY_HEIGHT * 0.2)
         self.WEATHER_HEIGHT = int(self.DISPLAY_HEIGHT * 0.2)
 
-        self.displaySurface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.display.set_caption("ATC Simulator")
 
     def init_load_airspace(self):
@@ -211,7 +219,6 @@ class Airspace:
             (self.WEATHER_HEIGHT, self.WEATHER_HEIGHT),
         )
         self.weatherBG.blit(source=img, dest=(self.CONTROLS_WIDTH // 2, 0))
-        print(ENV.windDirection)
         if ENV.windDirection < 90:
             dx, dy = (
                 math.cos(math.radians(90 - ENV.windDirection)) * 41,
@@ -291,15 +298,12 @@ class Airspace:
                     15.0 if random.randint(0, 1) < 0.5 else self.RADAR_WIDTH - 15,
                     _v,
                 )
-            heading = (
-                ATC.calc_heading(
-                    x,
-                    y,
-                    ATC.airspaceInfo["runways"][0]["headL"]["x"],
-                    ATC.airspaceInfo["runways"][0]["headL"]["y"],
-                )
-                + random.randint(-30, 30)
-            )
+            heading = ATC.calc_heading(
+                x,
+                y,
+                ATC.airspaceInfo["runways"][0]["headL"]["x"],
+                ATC.airspaceInfo["runways"][0]["headL"]["y"],
+            ) + random.randint(-30, 30)
             altitude = random.randint(5000, 20000)
             speed = random.randint(180, 300)
             isGround = False
@@ -440,7 +444,7 @@ class Airspace:
                     plane.heading = (plane.heading + plane.turnRate + 360) % 360
                     left_right = ">"
                 elif (
-                    not plane.turnDirection and anticlockwise < clockwise
+                    not plane.turnDirection and anticlockwise <= clockwise
                 ) or plane.turnDirection == "L":  # anticlockwise turn
                     plane.heading = (plane.heading - plane.turnRate + 360) % 360
                     left_right = "<"
@@ -473,18 +477,31 @@ class Airspace:
                     / (s / (plane.speed / ENV.SCALE)),
                 )
 
-                # check if touchdown
+                # check if touchdown (safe or go-around)
                 x, y = plane.goToFixed
+                # arrived at coordinates for land/go-around decision
                 if (
                     x - 2 <= int(plane.x) <= x + 2
                     and y - 2 <= int(plane.y) <= y + 2
-                    and plane.altitude == plane.altitudeTo
-                    and plane.speed == plane.speedTo
                     and plane.isLanding
+                    and not plane.isGround
                 ):
-                    plane.heading = plane.runwayHeading
-                    plane.speedTo = 0
-                    plane.isGround = True
+                    # land
+                    if (
+                        plane.altitude
+                        <= ATC.airspaceInfo["altitudes"]["groundLevel"] + 100
+                        and plane.speed <= plane.speedLanding + 3
+                    ):
+                        plane.heading = plane.runwayHeading
+                        plane.speedTo = 0
+                        plane.isGround = True
+                    else:
+                        plane.altitudeTo = plane.altitudeApproach
+                        plane.speedTo = plane.speedTakeoff
+                        plane.directionTo = plane.heading
+                        plane.isLanding = False
+                        # TODO: message
+                        ENV.score["goArounds"] -= 1
 
             # update pygame moving entities info - Radar screen
             plane.boxPosition = plane.boxSurface.get_rect(center=(plane.x, plane.y))
@@ -506,7 +523,7 @@ class Airspace:
                 plane.callSign, True, plane.tagColor, ENV.BG
             )
             plane.tagText1 = ENV.FONT12.render(
-                f"{(plane.altitude // 1000):03}{up_down}{plane.speed//10}",
+                f"{(plane.altitude // 100):03}{up_down}{plane.speed//10}",
                 True,
                 plane.tagColor,
                 ENV.BG,
@@ -584,7 +601,7 @@ class Airspace:
                 or plane.y > ATC.RADAR_HEIGHT
             ):
                 ATC.activeAirplanes.remove(plane)
-                ENV.score["uncontrolledExits"] += 1
+                ENV.score["uncontrolledExits"] -= 1
                 self.new_message(
                     f"{plane.callSign} uncontrolled exit from airspace. [-1 POINTS]",
                     "",
@@ -616,7 +633,7 @@ class Airspace:
                     and dist < ENV.MIN_H_SEPARATION
                 ):
                     plane.tagColor = ENV.RED
-                    ENV.score["warningSeconds"] += 1
+                    ENV.score["warnings"] -= 0.01
                     return
                 else:
                     plane.tagColor = ENV.WHITE
@@ -709,9 +726,11 @@ def process_keydown(key):
         ATC.commandText += chr(key).upper()
     elif key == K_BACKSPACE:
         ATC.commandText = ATC.commandText[:-1]
-    elif key in (K_KP_ENTER, K_RETURN, K_BACKSLASH):
+    elif key in (K_KP_ENTER, K_RETURN):
         process_command()
-    elif key == K_TAB:
+    elif key in (K_LCTRL, K_RCTRL):
+        ATC.commandText = ATC.lastCallSign
+    elif key == K_TAB:  # testing only
         ENV.SPEED = 5 if ENV.SPEED == 1 else 1
 
 
@@ -729,11 +748,10 @@ def process_command():
     plane = [i for i in ATC.activeAirplanes if i.callSign == flt]
     if plane:
         plane = plane[0]
+        ATC.lastCallSign = plane.callSign + " "
     else:
         ATC.commandText = ""
         error = 3
-
-    # text = "NOTHING"
 
     # check if format is right (2 or 3 blocks of commands)
     if len(cmd) == 1 and not error:
@@ -755,7 +773,9 @@ def process_command():
                     plane.speedCruise if not plane.speedTo else plane.speedTo
                 )
                 plane.isTakeoff = True
-                plane.altitudeTo = max(plane.altitudeTo, plane.altitudeMin)
+                plane.altitudeTo = max(
+                    plane.altitudeTo, ATC.airplaneData["altitudes"]["groundLevel"] + 500
+                )
                 text = f"{plane.callSign} Cleared for Takeoff"
             else:
                 error = 2
@@ -788,7 +808,11 @@ def process_command():
                     error = 2
         elif cmd[0] == "A":  # change altitude
             new = int(cmd[1])
-            if plane.altitudeMin < new * 1000 < plane.altitudeMax:
+            if (
+                ATC.airspaceInfo["altitudes"]["groundLevel"] + 500
+                <= new * 1000
+                <= plane.altitudeMax
+            ):
                 plane.altitudeTo = new * 1000
                 text = f"{plane.callSign} New altitude {new*1000}"
             else:
@@ -924,9 +948,9 @@ def update_pygame_display():
     ENV.score["total"] = (
         ENV.score["departures"]
         + ENV.score["arrivals"]
-        - ENV.score["uncontrolledExits"]
-        - ENV.score["warningSeconds"] // 10
-        - ENV.score["collisions"] * 500
+        + ENV.score["uncontrolledExits"]
+        + ENV.score["warnings"] // 10
+        + ENV.score["goArounds"]
     )
     text = [
         f"{j.title()}: {str(i)}" for i, j in zip(ENV.score.values(), ENV.score.keys())

@@ -4,9 +4,9 @@
         "model": "747",
         "speed": {
             "min": 160,
-            "max": 1000,
-            "cruising": 320,
-            "landing": 165,
+            "max": 600,
+            "cruising": 240,
+            "landing": 140,
             "takeoff": 120
         },
         "altitude": {
@@ -14,16 +14,16 @@
             "approach_max": 4000,
             "floor": 2000
         },
-        "ascentRate": 100,
-        "descentRate": -420,
+        "ascentRate": 25,
+        "descentRate": -30,
         "turnRate": 3,
         "acceleration": {
-            "ground": 4,
-            "air": 3
+            "ground": 5,
+            "air": 2.2
         },
         "deceleration": {
-            "ground": -4,
-            "air": -8
+            "ground": -4.5,
+            "air": -3
         }
     },
     "A320": {
