@@ -1,151 +1,91 @@
 {
     "altitudes": {
-        "groundLevel": 34,
+        "groundLevel": 608,
         "handOff": 2500
     },
     "VOR": [
         {
-            "name": "PAPAR",
-            "symbol": "STAR",
-            "x": 698,
-            "y": 20
+            "name": "GFE",
+            "symbol": "TRIANGLE",
+            "x": 205,
+            "y": 103
         },
         {
-            "name": "MAXMO",
-            "symbol": "STAR",
-            "x": 1654,
-            "y": 22
-        },
-        {
-            "name": "PUVAL",
-            "symbol": "STAR",
-            "x": 1862,
-            "y": 37
-        },
-        {
-            "name": "ORLIK",
-            "symbol": "STAR",
-            "x": 294,
-            "y": 167
-        },
-        {
-            "name": "TOSBO",
-            "symbol": "STAR",
-            "x": 789,
-            "y": 324
-        },
-        {
-            "name": "RAGSO",
-            "symbol": "STAR",
-            "x": 1718,
-            "y": 377
-        },
-        {
-            "name": "RANBI",
-            "symbol": "STAR",
-            "x": 17,
-            "y": 692
-        },
-        {
-            "name": "SHJ",
+            "name": "LFT",
             "symbol": "CIRCLES",
-            "x": 1482,
-            "y": 622
+            "x": 88,
+            "y": 33
         },
         {
-            "name": "LADVI",
+            "name": "XCY",
             "symbol": "STAR",
-            "x": 1436,
-            "y": 716
+            "x": 99,
+            "y": 300
         },
         {
-            "name": "LALDO",
-            "symbol": "STAR",
-            "x": 2232,
-            "y": 717
+            "name": "RYO",
+            "symbol": "CIRCLES",
+            "x": 499,
+            "y": 600
         },
         {
-            "name": "BUBOK",
+            "name": "BIX",
             "symbol": "STAR",
-            "x": 1682,
-            "y": 875
-        },
-        {
-            "name": "MOGAV",
-            "symbol": "STAR",
-            "x": 902,
-            "y": 1063
-        },
-        {
-            "name": "BUBIN",
-            "symbol": "STAR",
-            "x": 2229,
-            "y": 1218
-        },
-        {
-            "name": "MIADA",
-            "symbol": "STAR",
-            "x": 570,
-            "y": 1501
-        },
-        {
-            "name": "GIDIS",
-            "symbol": "STAR",
-            "x": 2231,
-            "y": 1503
+            "x": 1023,
+            "y": 808
         }
     ],
     "runways": [
         {
             "number": 1,
             "headL": {
-                "x": 1124,
-                "y": 750,
+                "x": 569,
+                "y": 433,
                 "tag": {
-                    "text": "12L",
+                    "text": "10",
                     "xy": [
-                        1075,
-                        740
+                        550,
+                        425
                     ],
                     "heading": 95.19
                 }
             },
             "headR": {
-                "x": 1220,
-                "y": 806,
+                "x": 624,
+                "y": 438,
                 "tag": {
-                    "text": "30R",
+                    "text": "28",
                     "xy": [
-                        1270,
-                        810
+                        628,
+                        435
                     ],
                     "heading": 275.19
                 }
             },
-            "width": 3
+            "width": 2
         },
         {
             "number": 2,
             "headL": {
-                "x": 1126,
-                "y": 765,
+                "x": 552,
+                "y": 443,
                 "tag": {
-                    "text": "12R",
+                    "text": "15",
                     "xy": [
-                        1276,
-                        715
+                        534,
+                        434
                     ],
                     "heading": 145.95
                 }
             },
             "headR": {
-                "x": 1223,
-                "y": 820,
+                "x": 577,
+                "y": 480,
                 "tag": {
-                    "text": "30L",
+                    "text": "33",
                     "xy": [
-                        1273,
-                        825
+                        575,
+                        483
                     ],
                     "heading": 325.95
                 }

@@ -11,9 +11,6 @@ from gtts import gTTS
 pygame.init()
 
 
-# TODO: calibrate
-# TODO: fix about face
-# TODO: warning decimals in score
 # TODO: when landing, intercept heading first
 # TODO: pause
 
@@ -63,7 +60,7 @@ class Environment:
         "arrivals": 0,
         "expediteCommands": 0,
         "uncontrolledExits": 0,
-        "warnings": 0,
+        "warnings": 0.0,
         "goArounds": 0,
         "total": 0,
     }
@@ -88,13 +85,11 @@ class Airspace:
     def init_pygame(self):
         # pygame init
         # os.environ["SDL_VIDEO_WINDOW_POS"] = "7, 28"
-        self.displaySurface = pygame.display.set_mode(
-            pygame.display.list_modes()[0]
-        )  # , pygame.FULLSCREEN)
+        self.displaySurface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         self.DISPLAY_WIDTH = pygame.display.Info().current_w
         self.DISPLAY_HEIGHT = pygame.display.Info().current_h // 1.07
         print(self.DISPLAY_WIDTH, self.DISPLAY_HEIGHT)
-        print(pygame.display.list_modes())
+        print(pygame.display.get_desktop_sizes())
         self.RADAR_WIDTH = int(self.DISPLAY_WIDTH * 0.75)
         self.RADAR_HEIGHT = self.DISPLAY_HEIGHT
         self.CONTROLS_WIDTH = int(self.DISPLAY_WIDTH * 0.25)
@@ -126,8 +121,7 @@ class Airspace:
         # create Radar main and background surfaces
         self.radarSurface = pygame.Surface((self.DISPLAY_WIDTH, self.DISPLAY_HEIGHT))
         self.radarSurface.fill(ENV.BG)
-        self.radarBG = pygame.Surface((self.DISPLAY_WIDTH, self.DISPLAY_HEIGHT))
-        self.radarBG.fill(ENV.BG)
+        self.radarBG = pygame.Surface.copy(self.radarSurface)
         # add VOR entities to Radar background surface
         for vor in self.airspaceInfo["VOR"]:
             self.radarBG.blit(
@@ -633,7 +627,7 @@ class Airspace:
                     and dist < ENV.MIN_H_SEPARATION
                 ):
                     plane.tagColor = ENV.RED
-                    ENV.score["warnings"] -= 0.01
+                    ENV.score["warnings"] = round(ENV.score["warnings"] - 0.01, 2)
                     return
                 else:
                     plane.tagColor = ENV.WHITE
@@ -774,7 +768,7 @@ def process_command():
                 )
                 plane.isTakeoff = True
                 plane.altitudeTo = max(
-                    plane.altitudeTo, ATC.airplaneData["altitudes"]["groundLevel"] + 500
+                    plane.altitudeTo, ATC.airspaceInfo["altitudes"]["groundLevel"] + 500
                 )
                 text = f"{plane.callSign} Cleared for Takeoff"
             else:
@@ -937,8 +931,8 @@ def update_pygame_display():
         surface=ATC.weatherSurface,
         font=ENV.FONT14,
         text=text,
-        fgColor=ENV.WHITE,
-        bgColor=ENV.BLACK,
+        fgColor=ENV.BLACK,
+        bgColor=ENV.BG_CONTROLS,
         x0=10,
         y0=25,
         dy=30,
@@ -949,7 +943,7 @@ def update_pygame_display():
         ENV.score["departures"]
         + ENV.score["arrivals"]
         + ENV.score["uncontrolledExits"]
-        + ENV.score["warnings"] // 10
+        + ENV.score["warnings"]
         + ENV.score["goArounds"]
     )
     text = [
