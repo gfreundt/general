@@ -13,7 +13,7 @@ def set_options():
     options.add_argument("--disable-gpu")
     options.add_argument("--silent")
     options.add_argument("--disable-notifications")
-    options.add_argument("--incognito")
+    # options.add_argument("--incognito")
     options.add_argument("--log-level=3")
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
     return options
