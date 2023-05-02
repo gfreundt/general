@@ -51,8 +51,7 @@ output_raw = extract("https://miolo.olo.com.pe/")
 output = (
     f"Stats from: {dt.now()}.\nData Left: {output_raw[0]}.\nUntil: {output_raw[1]}."
 )
-# print(output)
 
 import ezgmail  # Import close to sending to avoid 'Broken Pipe' error
 
-ezgmail.send("gfreundt@losportales.com.pe", "OLO Stats", output)
+ezgmail.send("gfreundt@gmail.com", "OLO Stats", output)
