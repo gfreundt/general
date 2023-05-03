@@ -1,4 +1,4 @@
-import time
+import time, sys
 from datetime import datetime as dt
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as WebDriverOptions
@@ -43,15 +43,25 @@ def extract(url):
         By.XPATH,
         "/html/body/div/div[2]/div/div[3]/div/div[2]/div[3]/div/div[1]/p",
     ).text
-
     return data_left, end_date[end_date.find("expira") + 12 :]
 
 
-output_raw = extract("https://miolo.olo.com.pe/")
-output = (
-    f"Stats from: {dt.now()}.\nData Left: {output_raw[0]}.\nUntil: {output_raw[1]}."
-)
+def include_in_table(output_raw):
+    with open("oloStatsHistoric.txt", mode="a") as output_file:
+        output_file.write(f"{dt.now()},{output_raw[0]},{output_raw[1]}")
 
-import ezgmail  # Import close to sending to avoid 'Broken Pipe' error
 
-ezgmail.send("gfreundt@gmail.com", "OLO Stats", output)
+def main():
+    output_raw = extract("https://miolo.olo.com.pe/")
+    output = (
+        f"Stats from: {dt.now()}.\nData Left: {output_raw[0]}.\nUntil: {output_raw[1]}."
+    )
+    include_in_table(output_raw)
+
+    if "EMAIL" in sys.argv:
+        import ezgmail  # Import close to sending to avoid 'Broken Pipe' error
+
+        ezgmail.send("gfreundt@gmail.com", "OLO Stats", output)
+
+
+main()
