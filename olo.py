@@ -48,7 +48,7 @@ def extract(url):
 
 def include_in_table(output_raw):
     with open("oloStatsHistoric.txt", mode="a") as output_file:
-        output_file.write(f"{dt.now()},{output_raw[0]},{output_raw[1]}")
+        output_file.write(f"{dt.now()},{output_raw[0]},{output_raw[1]}\n")
 
 
 def main():
@@ -56,12 +56,13 @@ def main():
     output = (
         f"Stats from: {dt.now()}.\nData Left: {output_raw[0]}.\nUntil: {output_raw[1]}."
     )
-    include_in_table(output_raw)
 
     if "EMAIL" in sys.argv:
         import ezgmail  # Import close to sending to avoid 'Broken Pipe' error
 
         ezgmail.send("gfreundt@gmail.com", "OLO Stats", output)
+    else:
+        include_in_table(output_raw)
 
 
 main()
