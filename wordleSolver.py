@@ -15,13 +15,6 @@ class Wordle:
         self.allWords = [
             i.strip().upper() for i in open("wordleDictionary.txt", "r").readlines()
         ]
-        a_to_z = [chr(i) for i in range(65, 91)]
-        self.solvedWord = [list(a_to_z) for _ in range(5)]  # avoid using same memory
-        self.presentLetters, self.absentLetters, self.solvedLetters = (
-            set(),
-            set(),
-            set(),
-        )
         self.rank = self.frequency()
         self.base_xpath = "/html/body/div[1]/div/section[1]/div/div[1]/div/div[1]/div/div/div[4]/div[6]/"
         self.buttons = [
@@ -32,12 +25,12 @@ class Wordle:
         self.GREEN = [121, 184, 81]
         self.YELLOW = [243, 194, 55]
         self.GRAY = [164, 174, 196]
-        self.tryWord = "AROSE"
+        self.reset()
         # define options for Chromedriver and open URL
         options = WebDriverOptions()
         options.add_argument("--silent")
         options.add_argument("--disable-notifications")
-        options.add_argument("--incognito")
+        # options.add_argument("--incognito")
         options.add_argument("--log-level=3")
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
         web_url = "https://wordlegame.org/"
@@ -47,7 +40,17 @@ class Wordle:
 
         self.webd.set_window_position(1300, 0, windowHandle="current")
         self.webd.get(web_url)
-        time.sleep(3)
+        time.sleep(1)
+
+    def reset(self):
+        a_to_z = [chr(i) for i in range(65, 91)]
+        self.solvedWord = [list(a_to_z) for _ in range(5)]  # avoid using same memory
+        self.presentLetters, self.absentLetters, self.solvedLetters = (
+            set(),
+            set(),
+            set(),
+        )
+        self.tryWord = "AROSE"
 
     def frequency(self):
         count = [[chr(i), 0] for i in range(65, 91)]
@@ -62,7 +65,7 @@ class Wordle:
             self.click_key(letter)
             time.sleep(2)
         self.click_key("@")
-        time.sleep(2)
+        time.sleep(0.5)
 
     def click_key(self, letter):
         line_text = [i for i in self.buttons if letter in i][0]
@@ -86,52 +89,33 @@ class Wordle:
             )
             for i in range(5)
         ]
+        for position, box in enumerate(boxes):
+            pixel = np.asarray(box)[75, 75]
+            if np.array_equal(pixel, self.GREEN):
+                self.green_letter(position)
+            elif np.array_equal(pixel, self.YELLOW):
+                self.yellow_letter(position)
+            elif np.array_equal(pixel, self.GRAY):
+                self.gray_letter(position)
 
-        result = []
-
-        G = [121, 184, 81]
-        Y = [243, 194, 55]
-        N = [164, 174, 196]
-
-        for box in boxes:
-            i = np.asarray(box)
-            # print(i[80, 45])
-            if np.array_equal(i[80, 45], self.GREEN):
-                self.green_letter
-            elif np.array_equal(i[80, 45], self.YELLOW):
-                self.yellow_letter
-            elif np.array_equal(i[80, 45], self.GRAY):
-                self.gray_letter
-
-        print(result)
-
-    def green_letter(self, letter, position):
+    def green_letter(self, position):
+        letter = self.tryWord[position]
         self.solvedWord[position] = letter
         self.presentLetters.update(letter)
         self.solvedLetters.update(letter)
 
-    def yellow_letter(self, letter, position):
+    def yellow_letter(self, position):
+        letter = self.tryWord[position]
         if letter in self.solvedWord[position]:
             self.solvedWord[position].remove(letter)
             self.presentLetters.update(letter)
 
-    def gray_letter(self, letter):
+    def gray_letter(self, position):
+        letter = self.tryWord[position]
         for pos, _ in enumerate(self.solvedWord):
             if letter in self.solvedWord[pos]:
                 self.solvedWord[pos].remove(letter)
                 self.absentLetters.update(letter)
-
-    def get_possible_words(self):
-        possible_words = [i for i in WORDLE.allWords if self.word_possible(i)]
-        if len(possible_words) == 1:
-            print(f"Solved with {possible_words[0]}")
-            response_code = 1
-        elif len(possible_words) == 0:
-            print("Error!!")
-            response_code = -1
-        else:
-            response_code = 0
-        return (possible_words, response_code)
 
     def word_possible(self, word):
         w = list(word)
@@ -153,7 +137,7 @@ class Wordle:
     def get_next_best_word(self, wordList):
         scores = []
         for word in wordList:
-            scores.append((word, self.calc_score(set(word), self.rank)))
+            scores.append((word, self.calc_score(set(word))))
         result = sorted(scores, key=lambda i: i[1], reverse=True)
         self.tryWord = result[0][0]
 
@@ -164,153 +148,28 @@ class Wordle:
             score += i
         return score
 
-    """
-    scores = []
-    for word in allWords:
-        scores.append((word, calc_score(set(word), rank)))
-    scores = sorted(scores, key=lambda i: i[1], reverse=True)
-
-    bestWords = list(itertools.permutations(top10Letters))
-    result = []
-    for i in tqdm(bestWords):
-        a = "".join(i[:5])
-        b = "".join(i[5:])
-        if a in allWords and b in allWords:
-            result.append((a, b, calc_score(a, rank)))
-
-    print(result)
-    result = sorted(result, key=lambda i: i[2], reverse=True)
-    print(result)
-
-    bestWords = list(itertools.permutations(next5Letters))
-    result2 = []
-    for i in tqdm(bestWords):
-        a = "".join(i[:5])
-        if a in allWords and b in allWords:
-            result2.append((a))
-
-    print(result2)
-    return
-
-    for k, first in enumerate(scores):
-        for second in scores[k + 1 :]:
-            print(set(list(first) + list(second)), set(top10Letters))
-            if set(list(first) + list(second)) == set(top10Letters):
-                print(first, second)
-                return
-
-    print(scores[:20])
-
-
-def get_best_words(wordList):
-    scores = []
-    for word in wordList:
-        scores.append((word, calc_score(set(word), rank)))
-    result = sorted(scores, key=lambda i: i[1], reverse=True)
-    return [i[0] for i in result[:5]]
-
-
-def get_one_key_response(valid_responses):
-    start = time.perf_counter()
-    while True:
-        letter = keyboard.read_key(suppress=True).upper()
-        if letter in valid_responses and time.perf_counter() - start > 0.2:
-            return letter
-
-
-def word_possible(word):
-    w = list(word)
-    # check if all present are there and all absent are not there
-    for absent in absentLetters:
-        if absent in w:
-            return False
-    for present in presentLetters:
-        if present not in w:
-            return False
-
-    # test known positions
-    for k, w in enumerate(solvedWord):
-        if w and word[k] not in w:
-            return False
-
-    return True
-    """
-
 
 def main():
     turn = 0
     while turn <= 5:
         WORDLE.write(WORDLE.tryWord)
+        time.sleep(5)
+        if "poof" in WORDLE.webd.page_source:
+            print("Solved")
+            return
         WORDLE.process_colors(turn)
-        possible_words, response_code = WORDLE.get_possible_words()
-        if response_code:
-            print("The End")
-            break
+        possible_words = [i for i in WORDLE.allWords if WORDLE.word_possible(i)]
         WORDLE.get_next_best_word(possible_words)
         turn += 1
 
-    return
 
-    while turns < 6:
-        print(f"Trying: {best_score_word}\n")
-        WORDLE.write(best_score_word)
-
-    return
-
-
-"""
-
-
-        test_word = input("Enter Test Word: ").upper()
-
-        print("Valid answers: (G)reen, (Y)ellow, (N)one\n")
-        valid_response = ("G", "Y", "N")
-
-        for k, letter in enumerate(test_word):
-            print(f"Result for {letter}: ", end="", flush=True)
-            status = (
-                get_one_key_response(valid_response)
-                if letter not in solvedLetters
-                else "G"
-            )
-            print()
-            if status == "G":
-                green_letter(letter, k)
-            elif status == "Y":
-                yellow_letter(letter, k)
-            elif status == "N":
-                gray_letter(letter)
-
-            # print(f"{presentLetters=}, {absentLetters=}")
-            # print(f"{solvedWord=}")
-
-        possible_words = [i for i in allWords if word_possible(i)]
-        # print(possible_words)
-
-        if len(possible_words) == 1:
-            print(f"Answer: {possible_words[0]}")
-            break
-        elif len(possible_words) == 0:
-            print("Error!!")
-            break
-
-        best_score_word = get_best_words(possible_words)
-        print(best_score_word)
-
-        turns += 1
-
-
-allWords = [i.strip().upper() for i in open("wordleDictionary.txt", "r").readlines()]
-a_to_z = [chr(i) for i in range(65, 91)]
-solvedWord = [list(a_to_z) for _ in range(5)]  # to avoid using same memory position
-presentLetters, absentLetters, solvedLetters = set(), set(), set()
-rank = frequency()
-
-# main()
-"""
-for i in range(0, 1):
-    get_colors(i)
-
-quit()
 WORDLE = Wordle()
-main()
+for i in range(20):
+    print("Round", i)
+    try:
+        main()
+    except:
+        print("Error")
+    time.sleep(10)
+    WORDLE.write("")
+    WORDLE.reset()
