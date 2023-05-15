@@ -25,6 +25,7 @@ class Wordle:
         self.GREEN = [121, 184, 81]
         self.YELLOW = [243, 194, 55]
         self.GRAY = [164, 174, 196]
+        self.BLANK = [255, 255, 255]
         self.reset()
         # define options for Chromedriver and open URL
         options = WebDriverOptions()
@@ -52,6 +53,10 @@ class Wordle:
         )
         self.tryWord = "AROSE"
 
+    def give_up(self):
+        button = "/html/body/div[1]/div/section[1]/div/div[1]/div/div[1]/div/div/header/div[2]/button[2]"
+        self.webd.find_element(By.XPATH, button).click()
+
     def frequency(self):
         count = [[chr(i), 0] for i in range(65, 91)]
         for word in self.allWords:
@@ -60,11 +65,12 @@ class Wordle:
                 count[i][1] += 1
         return sorted(count, key=lambda i: i[1], reverse=True)
 
-    def write(self, word):
+    def write(self, word, enter=True):
         for letter in word:
             self.click_key(letter)
-            time.sleep(2)
-        self.click_key("@")
+            time.sleep(0.5)
+        if enter:
+            self.click_key("@")
         time.sleep(0.5)
 
     def click_key(self, letter):
@@ -97,6 +103,8 @@ class Wordle:
                 self.yellow_letter(position)
             elif np.array_equal(pixel, self.GRAY):
                 self.gray_letter(position)
+            else:
+                return True
 
     def green_letter(self, position):
         letter = self.tryWord[position]
@@ -126,12 +134,11 @@ class Wordle:
         for present in self.presentLetters:
             if present not in w:
                 return False
-
         # test known positions
         for k, w in enumerate(self.solvedWord):
             if w and word[k] not in w:
                 return False
-
+        # all checks complete
         return True
 
     def get_next_best_word(self, wordList):
@@ -140,6 +147,8 @@ class Wordle:
             scores.append((word, self.calc_score(set(word))))
         result = sorted(scores, key=lambda i: i[1], reverse=True)
         self.tryWord = result[0][0]
+        if len(result) > 1:
+            self.tryWordAlternateList = [i[0] for i in result[1:]]
 
     def calc_score(self, option):
         score = 0
@@ -151,13 +160,20 @@ class Wordle:
 
 def main():
     turn = 0
+    start = time.perf_counter()
     while turn <= 5:
         WORDLE.write(WORDLE.tryWord)
         time.sleep(5)
         if "poof" in WORDLE.webd.page_source:
-            print("Solved")
+            print("Solved: ", WORDLE.tryWord, f"{time.perf_counter() - start:.1f}")
             return
-        WORDLE.process_colors(turn)
+        if WORDLE.process_colors(turn):  # error in word, go to next word
+            print("Word not Found")
+            WORDLE.write("<<<<<", enter=False)
+            time.sleep(3)
+            WORDLE.tryWord = WORDLE.tryWordAlternateList.pop(0)
+
+            continue
         possible_words = [i for i in WORDLE.allWords if WORDLE.word_possible(i)]
         WORDLE.get_next_best_word(possible_words)
         turn += 1
@@ -170,6 +186,7 @@ for i in range(20):
         main()
     except:
         print("Error")
-    time.sleep(10)
-    WORDLE.write("")
+        WORDLE.give_up()
+    time.sleep(5)
+    WORDLE.write("")  # press ENTER
     WORDLE.reset()
