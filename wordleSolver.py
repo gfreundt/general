@@ -1,6 +1,6 @@
 import time
+import platform
 
-# import pyautogui
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as WebDriverOptions
 from selenium.webdriver.common.by import By
@@ -33,9 +33,12 @@ class Wordle:
         options.add_argument("--log-level=3")
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
         web_url = "https://www.nytimes.com/games/wordle/index.html"
-        self.webd = webdriver.Chrome(
-            service=Service("C:\pythonCode\chromedriver.exe"), options=options
+        chromedriver_uri = (
+            "C:\pythonCode\chromedriver.exe"
+            if "Windows" in platform.uname().system
+            else "/home/gft/pythonCode/chromedriver.exe"
         )
+        self.webd = webdriver.Chrome(service=Service(chromedriver_uri), options=options)
 
         self.webd.get(web_url)
 
