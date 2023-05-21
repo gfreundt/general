@@ -17,6 +17,7 @@ class Wordle:
         self.allWords = [
             i.strip().upper() for i in open("wordleDictionary.txt", "r").readlines()
         ]
+        print("Dictionary Loaded...")
         self.rank = self.frequency()
         self.GREEN = [106, 170, 100, 255]
         self.YELLOW = [201, 180, 88, 255]
@@ -28,6 +29,7 @@ class Wordle:
         options = WebDriverOptions()
         options.add_argument("--silent")
         options.add_argument("--disable-notifications")
+        options.add_argument("--windows-size=1920,1080")
         options.add_argument("--headless")
         options.add_argument("--incognito")
         options.add_argument("--log-level=3")
@@ -36,24 +38,26 @@ class Wordle:
         chromedriver_uri = (
             "C:\pythonCode\chromedriver.exe"
             if "Windows" in platform.uname().system
-            else "/home/gft/pythonCode/chromedriver.exe"
+            else "/usr/bin/chromedriver"
         )
         self.webd = webdriver.Chrome(service=Service(chromedriver_uri), options=options)
 
         self.webd.get(web_url)
 
-        # testing only
+        # testing only (with incognito mode)
         time.sleep(3)
         button = self.webd.find_elements(
             By.XPATH, "/html/body/div/div/div/div/div[3]/button[2]"
         )
         if button:
             button[0].click()
+            print("Click One")
             time.sleep(3)
         button = self.webd.find_elements(By.CLASS_NAME, "Modal-module_closeIcon__TcEKb")
         if button:
             button[0].click()
             time.sleep(3)
+            print("Click Two")
 
         # load virtual keyboard dictionary of elements
         self.keys = {
@@ -82,7 +86,7 @@ class Wordle:
             set(),
             set(),
         )
-        self.tryWord = "AROSE"
+        self.tryWord = "STRIP"
 
     def write(self, word, enter=True):
         for letter in word:
@@ -99,6 +103,8 @@ class Wordle:
             )
         )
 
+        self.rows[active_row].screenshot(f"img_{active_row}.png")
+
         for position in range(5):
             pixel = img[46][25 + 62 * position]
             if np.array_equal(pixel, self.GREEN):
@@ -109,18 +115,21 @@ class Wordle:
                 self.gray_letter(position)
 
     def green_letter(self, position):
+        print("Green")
         letter = self.tryWord[position]
         self.solvedWord[position] = letter
         self.presentLetters.update(letter)
         self.solvedLetters.update(letter)
 
     def yellow_letter(self, position):
+        print("Yellow")
         letter = self.tryWord[position]
         if letter in self.solvedWord[position]:
             self.solvedWord[position].remove(letter)
             self.presentLetters.update(letter)
 
     def gray_letter(self, position):
+        print("Gray")
         letter = self.tryWord[position]
         for pos, _ in enumerate(self.solvedWord):
             if letter in self.solvedWord[pos]:
@@ -165,7 +174,7 @@ def main():
     turn = 0
     start = time.perf_counter()
     while turn <= 5:
-        # print(f"Turn: {turn}")
+        print(f"\nTurn: {turn}. Trying {WORDLE.tryWord}")
         try:
             WORDLE.write(WORDLE.tryWord)
         except:
