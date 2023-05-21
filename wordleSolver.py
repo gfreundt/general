@@ -1,12 +1,14 @@
-import keyboard
 import time
-import itertools
-import pyautogui
-import numpy as np
+
+# import pyautogui
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as WebDriverOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
+import base64
+import numpy as np
+from PIL import Image
+from io import BytesIO
 
 
 class Wordle:
@@ -16,32 +18,58 @@ class Wordle:
             i.strip().upper() for i in open("wordleDictionary.txt", "r").readlines()
         ]
         self.rank = self.frequency()
-        self.base_xpath = "/html/body/div[1]/div/section[1]/div/div[1]/div/div[1]/div/div/div[4]/div[6]/"
-        self.buttons = [
-            ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
-            ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
-            ["<", "Z", "X", "C", "V", "B", "N", "M", "@"],
-        ]
-        self.GREEN = [121, 184, 81]
-        self.YELLOW = [243, 194, 55]
-        self.GRAY = [164, 174, 196]
-        self.BLANK = [255, 255, 255]
+        self.GREEN = [106, 170, 100, 255]
+        self.YELLOW = [201, 180, 88, 255]
+        self.GRAY = [120, 124, 126, 255]
+        self.WHITE = [255, 255, 255, 255]
+        self.BLACK = [0, 0, 0, 255]
         self.reset()
         # define options for Chromedriver and open URL
         options = WebDriverOptions()
         options.add_argument("--silent")
         options.add_argument("--disable-notifications")
-        # options.add_argument("--incognito")
+        options.add_argument("--headless")
+        options.add_argument("--incognito")
         options.add_argument("--log-level=3")
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
-        web_url = "https://wordlegame.org/"
+        web_url = "https://www.nytimes.com/games/wordle/index.html"
         self.webd = webdriver.Chrome(
             service=Service("C:\pythonCode\chromedriver.exe"), options=options
         )
 
-        self.webd.set_window_position(1300, 0, windowHandle="current")
         self.webd.get(web_url)
-        time.sleep(1)
+
+        # testing only
+        time.sleep(3)
+        button = self.webd.find_elements(
+            By.XPATH, "/html/body/div/div/div/div/div[3]/button[2]"
+        )
+        if button:
+            button[0].click()
+            time.sleep(3)
+        button = self.webd.find_elements(By.CLASS_NAME, "Modal-module_closeIcon__TcEKb")
+        if button:
+            button[0].click()
+            time.sleep(3)
+
+        # load virtual keyboard dictionary of elements
+        self.keys = {
+            i: j
+            for i, j in zip(
+                "QWERTYUIOPASDFGHJKL@ZXCVBNM<",
+                self.webd.find_elements(By.CLASS_NAME, "Key-module_key__kchQI"),
+            )
+        }
+        # load list of row elements
+        self.rows = self.webd.find_elements(By.CLASS_NAME, "Row-module_row__pwpBq")
+
+    def frequency(self):
+        count = [[chr(i), 0] for i in range(65, 91)]
+        for word in self.allWords:
+            for letter in word:
+                i = ord(letter) - 65
+                count[i][1] += 1
+        return sorted(count, key=lambda i: i[1], reverse=True)
 
     def reset(self):
         a_to_z = [chr(i) for i in range(65, 91)]
@@ -53,58 +81,29 @@ class Wordle:
         )
         self.tryWord = "AROSE"
 
-    def give_up(self):
-        button = "/html/body/div[1]/div/section[1]/div/div[1]/div/div[1]/div/div/header/div[2]/button[2]"
-        self.webd.find_element(By.XPATH, button).click()
-
-    def frequency(self):
-        count = [[chr(i), 0] for i in range(65, 91)]
-        for word in self.allWords:
-            for letter in word:
-                i = ord(letter) - 65
-                count[i][1] += 1
-        return sorted(count, key=lambda i: i[1], reverse=True)
-
     def write(self, word, enter=True):
         for letter in word:
-            self.click_key(letter)
+            self.keys[letter].click()
             time.sleep(0.5)
         if enter:
-            self.click_key("@")
-        time.sleep(0.5)
+            self.keys["@"].click()
+            time.sleep(0.5)
 
-    def click_key(self, letter):
-        line_text = [i for i in self.buttons if letter in i][0]
-        line = self.buttons.index(line_text) + 1
-        pos = line_text.index(letter) + 1
-        self.webd.find_element(
-            By.XPATH, f"{self.base_xpath}div[{line}]/div[{pos}]"
-        ).click()
-
-    def process_colors(self, position):
-        top_left_row0 = (2656, 271)
-        box_size = (93, 93)
-        boxes = [
-            pyautogui.screenshot(
-                region=(
-                    top_left_row0[0] + i * box_size[0],
-                    top_left_row0[1] + position * box_size[1],
-                    box_size[0],
-                    box_size[1],
-                )
+    def process_colors(self, active_row):
+        img = np.array(
+            Image.open(
+                BytesIO(base64.b64decode(self.rows[active_row].screenshot_as_base64))
             )
-            for i in range(5)
-        ]
-        for position, box in enumerate(boxes):
-            pixel = np.asarray(box)[75, 75]
+        )
+
+        for position in range(5):
+            pixel = img[46][25 + 62 * position]
             if np.array_equal(pixel, self.GREEN):
                 self.green_letter(position)
             elif np.array_equal(pixel, self.YELLOW):
                 self.yellow_letter(position)
             elif np.array_equal(pixel, self.GRAY):
                 self.gray_letter(position)
-            else:
-                return True
 
     def green_letter(self, position):
         letter = self.tryWord[position]
@@ -159,34 +158,25 @@ class Wordle:
 
 
 def main():
+    WORDLE = Wordle()
     turn = 0
     start = time.perf_counter()
     while turn <= 5:
-        WORDLE.write(WORDLE.tryWord)
-        time.sleep(5)
-        if "poof" in WORDLE.webd.page_source:
-            print("Solved: ", WORDLE.tryWord, f"{time.perf_counter() - start:.1f}")
+        # print(f"Turn: {turn}")
+        try:
+            WORDLE.write(WORDLE.tryWord)
+        except:
+            print(
+                f"Found {WORDLE.tryWord} in {turn} tries ({time.perf_counter()-start:.1f} seconds)."
+            )
             return
-        if WORDLE.process_colors(turn):  # error in word, go to next word
-            print("Word not Found")
-            WORDLE.write("<<<<<", enter=False)
-            time.sleep(3)
-            WORDLE.tryWord = WORDLE.tryWordAlternateList.pop(0)
-
-            continue
+        time.sleep(5)
+        WORDLE.process_colors(turn)
         possible_words = [i for i in WORDLE.allWords if WORDLE.word_possible(i)]
         WORDLE.get_next_best_word(possible_words)
         turn += 1
 
+    print("Chances Exhausted")
 
-WORDLE = Wordle()
-for i in range(20):
-    print("Round", i)
-    try:
-        main()
-    except:
-        print("Error")
-        WORDLE.give_up()
-    time.sleep(5)
-    WORDLE.write("")  # press ENTER
-    WORDLE.reset()
+
+main()
